@@ -1,0 +1,73 @@
+# Plano de Tarefas: Dashboard
+
+Este documento especifica o plano detalhado de implementação para a funcionalidade de **Dashboard**, mapeando cada requisito da especificação [`dashboard-spec.md`](file:///home/gil/code/internal_management/spec/features/dashboard/dashboard-spec.md) e cumprindo os princípios da [`constituicao.md`](file:///home/gil/code/internal_management/spec/constituicao.md).
+
+---
+
+## Mapeamento de Requisitos da Especificação
+
+| Requisito / Regra | Descrição | Tarefa Correspondente |
+|---|---|---|
+| **Visão Geral / RN-02** | Técnico vê global e equipamentos; Colaborador vê apenas seus tickets. | **TASK-02**, **TASK-03**, **TASK-04**, **TASK-06** |
+| **RN-01** | Menu lateral à esquerda, ocultável, oculto por padrão ao iniciar. | **TASK-05** |
+| **RN-03 / RN-05** | Dashboard intuitivo; Valores numéricos crescentes, blocos com fade-in/slide-in. | **TASK-07** |
+| **RN-04** | "Painel de Patrimônio" no menu exclusivo para Técnico. Colaborador não vê. | **TASK-05** |
+| **Cenário 1** | Animações (números e blocos) aplicadas após login bem-sucedido. | **TASK-07** |
+| **Cenário 2** | Acesso ao Painel de Patrimônio por clique no Card ou Menu (Role: Técnico). | **TASK-05**, **TASK-06** |
+| **Cenário 3** | Visão limitada do Colaborador (somente seus tickets, sem equipamentos/menu). | **TASK-03**, **TASK-05**, **TASK-06** |
+| **Invariante** | Acesso às métricas e rotas de patrimônio bloqueado para não-técnicos. | **TASK-03**, **TASK-04**, **TASK-05** |
+
+---
+
+## Lista de Tarefas de Implementação
+
+### Fase 1: Serviços de Domínio e Banco de Dados (Backend)
+- [ ] **TASK-01: Preparação de Dados e Modelos Base**
+  - [ ] Garantir/verificar que os modelos SQLAlchemy para `Ticket` e `Equipment` (ou similares) existam ou criá-los de forma base, mapeando corretamente o relacionamento com o usuário criador do ticket.
+- [ ] **TASK-02: Consultas ao Banco de Dados (Repository)**
+  - [ ] Criar query para total de tickets globais (agrupados por status: pendente/andamento).
+  - [ ] Criar query para total de tickets filtrados pelo ID do usuário (`user_id`).
+  - [ ] Criar query para total de equipamentos cadastrados.
+  - [ ] **Testes de Integração:** Cobertura de 100% utilizando uma instância isolada do PostgreSQL, confirmando as contagens corretas.
+
+---
+
+### Fase 2: Regras de Negócio e Casos de Uso (Backend)
+- [ ] **TASK-03: Caso de Uso do Dashboard (`GetDashboardMetrics`)**
+  - [ ] Orquestrar a chamada ao banco baseado na role do usuário (injetada a partir do token JWT).
+  - [ ] Aplicar regra para `tecnico`: buscar totais globais e total de equipamentos.
+  - [ ] Aplicar regra para `colaborador`: buscar totais filtrados pelo próprio `user_id` e zerar/omitir contagem de equipamentos.
+  - [ ] **Testes Unitários:** 100% de cobertura nos ramos condicionais para cada role.
+
+---
+
+### Fase 3: Interface de API HTTP (FastAPI)
+- [ ] **TASK-04: Endpoints HTTP de Métricas (`/api/v1/dashboard/metrics`)**
+  - [ ] Criar Pydantic schema de resposta (`DashboardMetricsResponse`).
+  - [ ] Implementar a rota GET protegida pela dependência de autenticação atual (`get_current_user`).
+  - [ ] Tratar injeção do usuário autenticado no Caso de Uso.
+  - [ ] **Testes de API:** 100% de cobertura realizando requisições com tokens simulados de Técnico e Colaborador, verificando a estrutura e os dados do JSON.
+
+---
+
+### Fase 4: Frontend (React.js)
+- [ ] **TASK-05: Componente de Menu Lateral (RN-01, RN-04, Cenário 3)**
+  - [ ] Criar componente genérico `SideMenu`, iniciando em estado oculto (`collapsed`).
+  - [ ] Inserir lógica para exibir o e-mail do usuário obtido do estado de autenticação.
+  - [ ] Renderizar condicionalmente a opção "Painel de Patrimônio", garantindo que só seja montada se a role do usuário for `tecnico`.
+  - [ ] **Testes de Componente:** Validar renderização das opções de menu dependendo da role logada.
+- [ ] **TASK-06: Página Principal do Dashboard e Integração**
+  - [ ] Criar componente da página de Dashboard e efetuar chamada para `GET /api/v1/dashboard/metrics`.
+  - [ ] Mapear dados da API para blocos informativos (Cards de "Tickets Pendentes", "Tickets em Andamento").
+  - [ ] Renderizar condicionalmente o Card de "Equipamentos Cadastrados" e seu link de redirecionamento apenas se for `tecnico` (Cenário 2).
+  - [ ] **Testes de Integração:** Simular a resposta da API com mock e verificar se a renderização restringe corretamente a visão do colaborador.
+- [ ] **TASK-07: Micro-animações e Design Vibrante (Cenário 1, RN-03, RN-05)**
+  - [ ] Implementar transição CSS/framer-motion para os blocos surgirem na tela com *fade-in* ou *slide-in*.
+  - [ ] Desenvolver hook/lógica (ex. *CountUp*) para que os valores numéricos cresçam progressivamente de 0 até o valor retornado pela API.
+
+---
+
+### Fase 5: Validação Final
+- [ ] **TASK-08: Auditoria de Cobertura de Testes (100% Lines e Branches)**
+  - [ ] Executar suíte de testes do backend (`uv run pytest --cov=src --cov-branch --cov-report=term-missing`).
+  - [ ] Assegurar 100% de cobertura em todo código executável modificado ou criado para esta feature, conforme a Constituição do Projeto.
