@@ -3,9 +3,11 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuthContext } from './context/AuthContext';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { EquipmentListPage } from './pages/EquipmentListPage';
+import { EquipmentDetailPage } from './pages/EquipmentDetailPage';
 
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, loading } = useAuthContext();
+const ProtectedRoute: React.FC<{ children: React.ReactNode; requiredRole?: string }> = ({ children, requiredRole }) => {
+  const { isAuthenticated, user, loading } = useAuthContext();
 
   if (loading) {
     return (
@@ -17,6 +19,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (requiredRole && user?.role !== requiredRole) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
@@ -31,6 +37,22 @@ export const AppContent: React.FC = () => {
         element={
           <ProtectedRoute>
             <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/equipamentos"
+        element={
+          <ProtectedRoute requiredRole="tecnico">
+            <EquipmentListPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/equipamentos/:id"
+        element={
+          <ProtectedRoute requiredRole="tecnico">
+            <EquipmentDetailPage />
           </ProtectedRoute>
         }
       />

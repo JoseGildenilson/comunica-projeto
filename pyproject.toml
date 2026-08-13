@@ -28,3 +28,6 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 python_functions = "test_*"
 addopts = "-v --cov=src --cov-branch --cov-report=term-missing"
+
+[tool.coverage.run]
+omit = ["src/infrastructure/seed*.py"]

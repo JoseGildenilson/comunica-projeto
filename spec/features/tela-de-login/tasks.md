@@ -21,39 +21,39 @@ Este documento especifica o plano detalhado de implementação para a **Tela de 
 ## Lista de Tarefas de Implementação
 
 ### Fase 1: Infraestrutura e Estado Global do Frontend
-- [ ] **TASK-UI-01: Configuração do ambiente Frontend React e Design System Base**
-  - [ ] Configurar estrutura do projeto React (Vite / React + TypeScript ou JavaScript, Tailwind ou Vanilla CSS conforme convenção).
-  - [ ] Definir tokens de design e animações (`index.css` com variáveis de cores, sombras de brilho `box-shadow: 0 0 15px ...`, transições suaves `transition: all 0.2s ease` e keyframes de `fadeIn`/`scaleUp`).
-  - [ ] *Critério de Aceite:* Estilos base, sombras de brilho e animações aplicados corretamente.
+- [x] **TASK-UI-01: Configuração do ambiente Frontend React e Design System Base**
+  - [x] Configurar estrutura do projeto React (Vite / React + TypeScript ou JavaScript, Tailwind ou Vanilla CSS conforme convenção).
+  - [x] Definir tokens de design e animações (`index.css` com variáveis de cores, sombras de brilho `box-shadow: 0 0 15px ...`, transições suaves `transition: all 0.2s ease` e keyframes de `fadeIn`/`scaleUp`).
+  - [x] *Critério de Aceite:* Estilos base, sombras de brilho e animações aplicados corretamente.
 
-- [ ] **TASK-UI-02: Cliente HTTP de API e Contexto de Autenticação (`AuthContext`)**
-  - [ ] Implementar cliente HTTP (Axios / Fetch Wrapper) com `withCredentials: true` / `credentials: 'include'` para envio dos Cookies HttpOnly.
-  - [ ] Criar `AuthContext` e hook `useAuth` gerenciando estado `user` (`id`, `email`, `role`), estado de carregamento e funções `login`, `logout` e `checkAuth`.
-  - [ ] *Critério de Aceite:* `useAuth` responde aos estados de autenticação e injeta dados no aplicativo.
+- [x] **TASK-UI-02: Cliente HTTP de API e Contexto de Autenticação (`AuthContext`)**
+  - [x] Implementar cliente HTTP (Axios / Fetch Wrapper) com `withCredentials: true` / `credentials: 'include'` para envio dos Cookies HttpOnly.
+  - [x] Criar `AuthContext` e hook `useAuth` gerenciando estado `user` (`id`, `email`, `role`), estado de carregamento e funções `login`, `logout` e `checkAuth`.
+  - [x] *Critério de Aceite:* `useAuth` responde aos estados de autenticação e injeta dados no aplicativo.
 
 ---
 
 ### Fase 2: Componentes da Interface de Login
-- [ ] **TASK-UI-03: Componente do Formulário de Login (`LoginForm` com Micro-interações)**
-  - [ ] Criar campos de entrada com anel de foco (*ring/glow*) animado ao selecionar.
-  - [ ] Criar botão "Entrar" com efeito hover fluido (mudança de gradiente, elevação suave e iluminação *glow*).
-  - [ ] Adicionar suporte a estado `isSubmitting` (exibindo spinner de carregamento e desabilitando os campos).
-  - [ ] *Critério de Aceite:* Botão reage suavemente ao passar o mouse e valida entradas prevenindo reenvios.
+- [x] **TASK-UI-03: Componente do Formulário de Login (`LoginForm` com Micro-interações)**
+  - [x] Criar campos de entrada com anel de foco (*ring/glow*) animado ao selecionar.
+  - [x] Criar botão "Entrar" com efeito hover fluido (mudança de gradiente, elevação suave e iluminação *glow*).
+  - [x] Adicionar suporte a estado `isSubmitting` (exibindo spinner de carregamento e desabilitando os campos).
+  - [x] *Critério de Aceite:* Botão reage suavemente ao passar o mouse e valida entradas prevenindo reenvios.
 
-- [ ] **TASK-UI-04: Componente de Alerta de Erro e Bloqueio (`AlertBanner`)**
-  - [ ] Criar banner de mensagem para HTTP 401 ("Credenciais inválidas. Verifique seu email e senha.").
-  - [ ] Criar banner de destaque para HTTP 429 ("Acesso temporariamente bloqueado por motivos de segurança. Tente novamente em 15 minutos.").
-  - [ ] *Critério de Aceite:* Alertas renderizam com ícones e estilos apropriados de erro/aviso.
+- [x] **TASK-UI-04: Componente de Alerta de Erro e Bloqueio (`AlertBanner`)**
+  - [x] Criar banner de mensagem para HTTP 401 ("Credenciais inválidas. Verifique seu email e senha.").
+  - [x] Criar banner de destaque para HTTP 429 ("Acesso temporariamente bloqueado por motivos de segurança. Tente novamente em 15 minutos.").
+  - [x] *Critério de Aceite:* Alertas renderizam com ícones e estilos apropriados de erro/aviso.
 
-- [ ] **TASK-UI-05: Integração da Página de Login (`LoginPage`)**
-  - [ ] Criar layout centralizado e responsivo da página de login com animação de entrada (*fade-in / scale-up*), marca da empresa, card elevado e formulário.
-  - [ ] Conectar o formulário à chamada `login(email, password)` da API e tratar redirecionamento para `/dashboard`.
-  - [ ] *Critério de Aceite:* Login bem-sucedido direciona para dashboard; falhas exibem alertas correspondentes.
+- [x] **TASK-UI-05: Integração da Página de Login (`LoginPage`)**
+  - [x] Criar layout centralizado e responsivo da página de login com animação de entrada (*fade-in / scale-up*), marca da empresa, card elevado e formulário.
+  - [x] Conectar o formulário à chamada `login(email, password)` da API e tratar redirecionamento para `/dashboard`.
+  - [x] *Critério de Aceite:* Login bem-sucedido direciona para dashboard; falhas exibem alertas correspondentes.
 
 ---
 
 ### Fase 3: Suíte de Testes de Componentes e Integração Frontend
-- [ ] **TASK-UI-06: Suíte de Testes Frontend (React Testing Library / Vitest)**
-  - [ ] Criar testes cobrindo os 6 cenários BDD da especificação.
-  - [ ] Testar estados de validação, clique no botão de envio, prevenção de duplo clique, exibição de alerta 401 e 429.
-  - [ ] *Critério de Aceite:* 100% de cobertura nos componentes de login do frontend.
+- [x] **TASK-UI-06: Suíte de Testes Frontend (React Testing Library / Vitest)**
+  - [x] Criar testes cobrindo os 6 cenários BDD da especificação.
+  - [x] Testar estados de validação, clique no botão de envio, prevenção de duplo clique, exibição de alerta 401 e 429.
+  - [x] *Critério de Aceite:* 100% de cobertura nos componentes de login do frontend.

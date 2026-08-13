@@ -1,0 +1,257 @@
+"""Testes de API HTTP para os endpoints de Gestão de Equipamentos (FastAPI)."""
+from datetime import datetime, timezone
+import pytest
+from httpx import AsyncClient
+from sqlalchemy.orm import Session
+from src.core.security import create_access_token
+
+
+@pytest.fixture
+def test_users(create_test_user):
+    tecnico = create_test_user(email="tecnico_eq@empresa.com", role="tecnico")
+    colaborador = create_test_user(email="colaborador_eq@empresa.com", role="colaborador")
+    return {"tecnico": tecnico, "colaborador": colaborador}
+
+
+@pytest.fixture
+def tecnico_cookie(test_users):
+    tec = test_users["tecnico"]
+    return create_access_token({"sub": str(tec.id), "email": tec.email, "role": tec.role})
+
+
+@pytest.fixture
+def colaborador_cookie(test_users):
+    colab = test_users["colaborador"]
+    return create_access_token({"sub": str(colab.id), "email": colab.email, "role": colab.role})
+
+
+@pytest.mark.anyio
+async def test_equipment_api_rbac_forbidden_for_colaborador(client: AsyncClient, colaborador_cookie: str):
+    """Testa que colaborador recebe HTTP 403 Forbidden ao acessar rotas de Equipamentos (RN-EQ-10)."""
+    client.cookies.set("access_token", colaborador_cookie)
+    response = await client.get("/api/v1/equipments")
+    assert response.status_code == 403
+    assert "restrito" in response.json()["detail"].lower()
+
+
+@pytest.mark.anyio
+async def test_equipment_api_create_and_get_detail_tecnico(client: AsyncClient, tecnico_cookie: str):
+    """Testa cadastro e consulta detalhada por Técnico (Cenário BDD 1 & 2)."""
+    client.cookies.set("access_token", tecnico_cookie)
+
+    payload = {
+        "serial_number": "SN_API_001",
+        "patrimony_number": "PAT_API_001",
+        "hostname": "HOST-API-01",
+        "description": "Dell OptiPlex 7090 API",
+        "equipment_type": "Desktop",
+        "location": "TI",
+        "status": "Em uso",
+        "brand": "Dell",
+        "windows_key": "XXXXX-XXXXX-XXXXX-XXXXX-XXXXX",
+    }
+    create_resp = await client.post("/api/v1/equipments", json=payload)
+    assert create_resp.status_code == 201
+    data = create_resp.json()
+    assert data["id"] is not None
+    assert data["serial_number"] == "SN_API_001"
+
+    # Consulta detalhada
+    eq_id = data["id"]
+    detail_resp = await client.get(f"/api/v1/equipments/{eq_id}")
+    assert detail_resp.status_code == 200
+    detail_data = detail_resp.json()
+    assert detail_data["description"] == "Dell OptiPlex 7090 API"
+
+
+@pytest.mark.anyio
+async def test_equipment_api_get_detail_404(client: AsyncClient, tecnico_cookie: str):
+    """Testa HTTP 404 ao buscar equipamento inexistente."""
+    client.cookies.set("access_token", tecnico_cookie)
+    resp = await client.get("/api/v1/equipments/9999")
+    assert resp.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_equipment_api_duplicate_error_400(client: AsyncClient, tecnico_cookie: str):
+    """Testa erro HTTP 400 em duplicidade de Nº de Série (Cenário BDD 2)."""
+    client.cookies.set("access_token", tecnico_cookie)
+    payload = {
+        "serial_number": "SN_DUP_API",
+        "description": "Primeiro",
+        "equipment_type": "Notebook",
+        "location": "TI",
+    }
+    await client.post("/api/v1/equipments", json=payload)
+
+    # Segunda tentativa com o mesmo serial
+    resp_dup = await client.post("/api/v1/equipments", json=payload)
+    assert resp_dup.status_code == 400
+    assert "já está cadastrado" in resp_dup.json()["detail"]
+
+
+@pytest.mark.anyio
+async def test_equipment_api_list_and_filters(client: AsyncClient, tecnico_cookie: str):
+    """Testa listagem paginada e filtros na API HTTP."""
+    client.cookies.set("access_token", tecnico_cookie)
+
+    for i in range(1, 6):
+        await client.post("/api/v1/equipments", json={
+            "serial_number": f"SN_LIST_{i}",
+            "patrimony_number": f"PAT_{i}",
+            "description": f"Equipamento Teste {i}",
+            "equipment_type": "Notebook" if i % 2 == 0 else "Desktop",
+            "location": "TI" if i <= 3 else "Comunicação",
+            "status": "Em uso" if i <= 3 else "Ocioso",
+            "product_number": f"PROD_{i}",
+        })
+
+    response = await client.get(
+        "/api/v1/equipments?page=1&limit=25&type=Notebook&location=TI&status=Em%20uso&patrimony_number=PAT_2&serial_number=SN_LIST_2&product_number=PROD_2&sort_by=serial_number&sort_dir=asc"
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 1
+
+
+@pytest.mark.anyio
+async def test_equipment_api_update_404_and_400(client: AsyncClient, tecnico_cookie: str):
+    """Testa atualização de equipamento e tratamento de erros."""
+    client.cookies.set("access_token", tecnico_cookie)
+
+    res = await client.post("/api/v1/equipments", json={
+        "serial_number": "SN_UPD_1",
+        "description": "Original",
+        "equipment_type": "Desktop",
+        "location": "TI",
+    })
+    eq_id = res.json()["id"]
+
+    # Atualização OK
+    upd_resp = await client.put(f"/api/v1/equipments/{eq_id}", json={
+        "description": "Modificado",
+        "brand": "Dell",
+        "product_number": "P123",
+        "windows_key": "KEY123",
+        "notes": "Obs editada",
+    })
+    assert upd_resp.status_code == 200
+    assert upd_resp.json()["description"] == "Modificado"
+
+    # Update 404
+    upd_404 = await client.put("/api/v1/equipments/9999", json={"description": "Novo"})
+    assert upd_404.status_code == 404
+
+    # Update 400 (duplicidade)
+    await client.post("/api/v1/equipments", json={
+        "serial_number": "SN_UPD_EXISTING",
+        "description": "Existe",
+        "equipment_type": "Desktop",
+        "location": "TI",
+    })
+    upd_400 = await client.put(f"/api/v1/equipments/{eq_id}", json={"serial_number": "SN_UPD_EXISTING"})
+    assert upd_400.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_equipment_api_tags(client: AsyncClient, tecnico_cookie: str):
+    """Testa listagem e criação de tags dinâmicas."""
+    client.cookies.set("access_token", tecnico_cookie)
+
+    # Criação
+    create_resp = await client.post("/api/v1/equipments/tags", json={"category": "tipo", "name": "Servidor"})
+    assert create_resp.status_code == 201
+    assert create_resp.json()["name"] == "Servidor"
+
+    # Listagem por categoria
+    list_resp = await client.get("/api/v1/equipments/tags?category=tipo")
+    assert list_resp.status_code == 200
+    assert any(t["name"] == "Servidor" for t in list_resp.json())
+
+    # Listagem geral
+    list_all = await client.get("/api/v1/equipments/tags")
+    assert list_all.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_equipment_api_movements_and_maintenances(client: AsyncClient, tecnico_cookie: str):
+    """Testa endpoints HTTP de movimentação e manutenção (Cenários BDD 3 & 4)."""
+    client.cookies.set("access_token", tecnico_cookie)
+
+    eq_resp = await client.post("/api/v1/equipments", json={
+        "serial_number": "SN_HIST_01",
+        "description": "Notebook para Histórico",
+        "equipment_type": "Notebook",
+        "location": "TI",
+        "status": "Em uso",
+    })
+    eq_id = eq_resp.json()["id"]
+
+    now_str = datetime.now(timezone.utc).isoformat()
+
+    # Movimentação OK
+    mov_resp = await client.post(f"/api/v1/equipments/{eq_id}/movements", json={
+        "origin_location": "TI",
+        "destination_location": "Rádio Produção",
+        "movement_date": now_str,
+        "notes": "Mudança de setor",
+    })
+    assert mov_resp.status_code == 201
+    assert mov_resp.json()["destination_location"] == "Rádio Produção"
+
+    # Movimentação 404
+    mov_404 = await client.post("/api/v1/equipments/9999/movements", json={
+        "origin_location": "TI",
+        "destination_location": "Rádio Produção",
+        "movement_date": now_str,
+    })
+    assert mov_404.status_code == 404
+
+    # Manutenção OK
+    maint_resp = await client.post(f"/api/v1/equipments/{eq_id}/maintenances", json={
+        "maintenance_date": now_str,
+        "maintenance_type": "Preventiva",
+        "description": "Limpeza de cooler",
+    })
+    assert maint_resp.status_code == 201
+    assert maint_resp.json()["description"] == "Limpeza de cooler"
+
+    # Manutenção 404
+    maint_404 = await client.post("/api/v1/equipments/9999/maintenances", json={
+        "maintenance_date": now_str,
+        "maintenance_type": "Preventiva",
+        "description": "Inexistente",
+    })
+    assert maint_404.status_code == 404
+
+    maint_id = maint_resp.json()["id"]
+
+    # Edição de Manutenção OK
+    maint_put = await client.put(f"/api/v1/equipments/{eq_id}/maintenances/{maint_id}", json={
+        "description": "Limpeza de cooler e substituição de pasta térmica",
+        "notes": "Executado com sucesso",
+    })
+    assert maint_put.status_code == 200
+    assert maint_put.json()["description"] == "Limpeza de cooler e substituição de pasta térmica"
+
+    # Edição de Manutenção 404
+    maint_put_404 = await client.put(f"/api/v1/equipments/{eq_id}/maintenances/9999", json={
+        "description": "Inexistente",
+    })
+    assert maint_put_404.status_code == 404
+
+    # Exclusão de Manutenção OK
+    maint_del = await client.delete(f"/api/v1/equipments/{eq_id}/maintenances/{maint_id}")
+    assert maint_del.status_code == 200
+    assert "sucesso" in maint_del.json()["message"]
+
+    # Exclusão de Manutenção 404
+    maint_del_404 = await client.delete(f"/api/v1/equipments/{eq_id}/maintenances/9999")
+    assert maint_del_404.status_code == 404
+
+    # Verifica atualização no objeto do equipamento
+    get_resp = await client.get(f"/api/v1/equipments/{eq_id}")
+    eq_data = get_resp.json()
+    assert eq_data["location"] == "Rádio Produção"
+    assert len(eq_data["movements"]) == 1
+    assert len(eq_data["maintenances"]) == 0

@@ -61,3 +61,13 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         )
 
     return user
+
+
+def require_tecnico_role(current_user: User = Depends(get_current_user)) -> User:
+    """Valida se o usuário autenticado possui a role 'tecnico' (RN-EQ-10)."""
+    if current_user.role != "tecnico":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso restrito exclusivamente a usuários com perfil técnico.",
+        )
+    return current_user

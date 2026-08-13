@@ -4,9 +4,17 @@ Nota: Em cumprimento à Constituição, os repositórios NÃO executam commit ou
 O controle de transação é feito no nível do caso de uso ou rota HTTP.
 """
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_, desc, asc
 from sqlalchemy.orm import Session
-from src.domain.models import User, LoginAttempt, Ticket, Equipment
+from src.domain.models import (
+    User,
+    LoginAttempt,
+    Ticket,
+    Equipment,
+    EquipmentTag,
+    EquipmentMovement,
+    EquipmentMaintenance,
+)
 
 
 class DashboardRepository:
@@ -81,3 +89,199 @@ class LoginAttemptRepository:
         )
         self.db.add(attempt)
         return attempt
+
+
+class EquipmentRepository:
+    """Repositório de persistência e consulta da entidade Equipment."""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_by_id(self, equipment_id: int) -> Equipment | None:
+        """Busca equipamento por ID."""
+        stmt = select(Equipment).where(Equipment.id == equipment_id)
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def get_by_serial_number(self, serial_number: str) -> Equipment | None:
+        """Busca equipamento por Nº de Série."""
+        stmt = select(Equipment).where(Equipment.serial_number == serial_number)
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def get_by_patrimony_number(self, patrimony_number: str) -> Equipment | None:
+        """Busca equipamento por Nº de Patrimônio."""
+        stmt = select(Equipment).where(Equipment.patrimony_number == patrimony_number)
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def get_by_hostname(self, hostname: str) -> Equipment | None:
+        """Busca equipamento por Hostname."""
+        stmt = select(Equipment).where(Equipment.hostname == hostname)
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def list_paginated_and_filtered(
+        self,
+        page: int = 1,
+        limit: int = 25,
+        equipment_type: list[str] | str | None = None,
+        location: list[str] | str | None = None,
+        status: list[str] | str | None = None,
+        patrimony_number: list[str] | str | None = None,
+        serial_number: list[str] | str | None = None,
+        product_number: list[str] | str | None = None,
+        search: str | None = None,
+        sort_by: str = "created_at",
+        sort_dir: str = "desc",
+    ) -> tuple[list[Equipment], int]:
+        """Retorna equipamentos paginados e filtrados com o total de registros (suporta múltiplos valores por filtro)."""
+        query = select(Equipment)
+
+        def normalize_list(val: list[str] | str | None) -> list[str]:
+            if val is None:
+                return []
+            if isinstance(val, list):
+                return [v for v in val if v]
+            return [val] if val else []
+
+        types = normalize_list(equipment_type)
+        if types:
+            query = query.where(Equipment.equipment_type.in_(types))
+
+        locations = normalize_list(location)
+        if locations:
+            query = query.where(Equipment.location.in_(locations))
+
+        statuses = normalize_list(status)
+        if statuses:
+            query = query.where(Equipment.status.in_(statuses))
+
+        patrimonies = normalize_list(patrimony_number)
+        if patrimonies:
+            query = query.where(or_(*[Equipment.patrimony_number.ilike(f"%{p}%") for p in patrimonies]))
+
+        serials = normalize_list(serial_number)
+        if serials:
+            query = query.where(or_(*[Equipment.serial_number.ilike(f"%{s}%") for s in serials]))
+
+        products = normalize_list(product_number)
+        if products:
+            query = query.where(or_(*[Equipment.product_number.ilike(f"%{pr}%") for pr in products]))
+
+        # Busca geral em múltiplos campos
+        if search:
+            search_pattern = f"%{search}%"
+            query = query.where(
+                or_(
+                    Equipment.description.ilike(search_pattern),
+                    Equipment.brand.ilike(search_pattern),
+                    Equipment.patrimony_number.ilike(search_pattern),
+                    Equipment.serial_number.ilike(search_pattern),
+                    Equipment.product_number.ilike(search_pattern),
+                    Equipment.hostname.ilike(search_pattern),
+                )
+            )
+
+        # Totalizador antes da paginação
+        count_stmt = select(func.count()).select_from(query.subquery())
+        total = self.db.execute(count_stmt).scalar() or 0
+
+        # Ordenação
+        sort_column = getattr(Equipment, sort_by, Equipment.created_at)
+        if sort_dir.lower() == "asc":
+            query = query.order_by(asc(sort_column))
+        else:
+            query = query.order_by(desc(sort_column))
+
+        # Paginação
+        offset = (page - 1) * limit
+        query = query.offset(offset).limit(limit)
+
+        items = list(self.db.execute(query).scalars().all())
+        return items, total
+
+    def create(self, equipment: Equipment) -> Equipment:
+        """Adiciona novo equipamento à sessão."""
+        self.db.add(equipment)
+        return equipment
+
+
+class EquipmentTagRepository:
+    """Repositório para gerenciamento das tags dinâmicas."""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def list_all(self) -> list[EquipmentTag]:
+        """Retorna todas as tags."""
+        stmt = select(EquipmentTag).order_by(EquipmentTag.category, EquipmentTag.name)
+        return list(self.db.execute(stmt).scalars().all())
+
+    def list_by_category(self, category: str) -> list[EquipmentTag]:
+        """Retorna tags filtradas por categoria ('tipo', 'localizacao', 'situacao')."""
+        stmt = (
+            select(EquipmentTag)
+            .where(EquipmentTag.category == category)
+            .order_by(EquipmentTag.name)
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+    def get_by_category_and_name(self, category: str, name: str) -> EquipmentTag | None:
+        """Busca tag por categoria e nome."""
+        stmt = select(EquipmentTag).where(
+            EquipmentTag.category == category, EquipmentTag.name == name
+        )
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def create(self, tag: EquipmentTag) -> EquipmentTag:
+        """Adiciona nova tag à sessão."""
+        self.db.add(tag)
+        return tag
+
+
+class EquipmentMovementRepository:
+    """Repositório de histórico de movimentação."""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def create(self, movement: EquipmentMovement) -> EquipmentMovement:
+        """Adiciona nova movimentação à sessão."""
+        self.db.add(movement)
+        return movement
+
+    def list_by_equipment(self, equipment_id: int) -> list[EquipmentMovement]:
+        """Retorna o histórico de movimentações de um equipamento."""
+        stmt = (
+            select(EquipmentMovement)
+            .where(EquipmentMovement.equipment_id == equipment_id)
+            .order_by(desc(EquipmentMovement.movement_date))
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+
+class EquipmentMaintenanceRepository:
+    """Repositório de histórico de manutenção."""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_by_id(self, maintenance_id: int) -> EquipmentMaintenance | None:
+        """Busca registro de manutenção por ID."""
+        stmt = select(EquipmentMaintenance).where(EquipmentMaintenance.id == maintenance_id)
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def create(self, maintenance: EquipmentMaintenance) -> EquipmentMaintenance:
+        """Adiciona nova manutenção à sessão."""
+        self.db.add(maintenance)
+        return maintenance
+
+    def delete(self, maintenance: EquipmentMaintenance) -> None:
+        """Remove registro de manutenção da sessão."""
+        self.db.delete(maintenance)
+
+    def list_by_equipment(self, equipment_id: int) -> list[EquipmentMaintenance]:
+        """Retorna o histórico de manutenções de um equipamento."""
+        stmt = (
+            select(EquipmentMaintenance)
+            .where(EquipmentMaintenance.equipment_id == equipment_id)
+            .order_by(desc(EquipmentMaintenance.maintenance_date))
+        )
+        return list(self.db.execute(stmt).scalars().all())

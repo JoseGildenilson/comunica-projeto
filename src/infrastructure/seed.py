@@ -1,13 +1,54 @@
-"""Script para popular o banco de dados com dados fictícios para testes."""
+"""Script para popular o banco de dados com dados iniciais (seed) e fictícios para testes."""
+from sqlalchemy.orm import Session
 from src.core.database import SessionLocal
 from src.core.security import hash_password
-from src.domain.models import User, Equipment, Ticket
+from src.domain.models import User, Equipment, EquipmentTag, Ticket
+
+DEFAULT_TAGS = [
+    # Tipos
+    ("tipo", "Desktop"),
+    ("tipo", "Notebook"),
+    ("tipo", "Monitor"),
+    ("tipo", "Impressora"),
+    # Localizações
+    ("localizacao", "TI"),
+    ("localizacao", "Comunicação"),
+    ("localizacao", "Rádio Produção"),
+    ("localizacao", "Diretoria"),
+    # Situações
+    ("situacao", "Em uso"),
+    ("situacao", "Ocioso"),
+    ("situacao", "Em manutenção"),
+    ("situacao", "Aguardando recolhimento"),
+    ("situacao", "Baixado"),
+]
+
+
+def seed_default_tags(db: Session) -> list[EquipmentTag]:
+    """Insere as tags padrão no banco de dados se ainda não existirem."""
+    created_tags = []
+    for category, name in DEFAULT_TAGS:
+        existing = (
+            db.query(EquipmentTag)
+            .filter(EquipmentTag.category == category, EquipmentTag.name == name)
+            .first()
+        )
+        if not existing:
+            tag = EquipmentTag(category=category, name=name)
+            db.add(tag)
+            created_tags.append(tag)
+    if created_tags:
+        db.flush()
+    return created_tags
 
 
 def seed_database():
     """Insere dados fictícios no banco de dados se ainda não existirem."""
     db = SessionLocal()
     try:
+        # Seed tags primeiro
+        seed_default_tags(db)
+
         tecnico = db.query(User).filter(User.email == "tecnico@empresa.com").first()
         if not tecnico:
             tecnico = User(
@@ -33,10 +74,44 @@ def seed_database():
         # Equipamentos
         if db.query(Equipment).count() == 0:
             equipments = [
-                Equipment(name="Notebook Dell Latitude 3420", description="Core i5, 16GB RAM, SSD 512GB", status="em_uso"),
-                Equipment(name="Monitor LG 29' Ultrawide", description="IPS 75Hz Full HD", status="disponível"),
-                Equipment(name="Teclado Mecânico Keychron K2", description="Wireless RGB Red Switch", status="disponível"),
-                Equipment(name="MacBook Pro M2 14'", description="16GB RAM, SSD 512GB", status="manutenção"),
+                Equipment(
+                    description="Notebook Dell Latitude 3420 Core i5, 16GB RAM",
+                    serial_number="SN-DELL-3420",
+                    patrimony_number="PAT-1001",
+                    hostname="NOTE-TI-01",
+                    brand="Dell",
+                    equipment_type="Notebook",
+                    location="TI",
+                    status="Em uso",
+                ),
+                Equipment(
+                    description="Monitor LG 29' Ultrawide IPS 75Hz",
+                    serial_number="SN-LG-29-001",
+                    patrimony_number="PAT-1002",
+                    brand="LG",
+                    equipment_type="Monitor",
+                    location="Comunicação",
+                    status="Ocioso",
+                ),
+                Equipment(
+                    description="Desktop OptiPlex 7090",
+                    serial_number="SN-DELL-7090",
+                    patrimony_number="PAT-1003",
+                    hostname="DESK-RADIO-01",
+                    brand="Dell",
+                    equipment_type="Desktop",
+                    location="Rádio Produção",
+                    status="Em uso",
+                ),
+                Equipment(
+                    description="MacBook Pro M2 14' 16GB RAM",
+                    serial_number="SN-MAC-M2-01",
+                    patrimony_number="PAT-1004",
+                    brand="Apple",
+                    equipment_type="Notebook",
+                    location="Diretoria",
+                    status="Em manutenção",
+                ),
             ]
             db.add_all(equipments)
 

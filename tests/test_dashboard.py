@@ -2,9 +2,13 @@
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.orm import Session
+# pyrefly: ignore [missing-import]
 from src.core.security import create_access_token
+# pyrefly: ignore [missing-import]
 from src.domain.models import Ticket, Equipment
+# pyrefly: ignore [missing-import]
 from src.infrastructure.repositories import DashboardRepository
+# pyrefly: ignore [missing-import]
 from src.use_cases.get_dashboard_metrics import GetDashboardMetricsUseCase
 
 
@@ -15,8 +19,8 @@ def seed_dashboard_data(db_session: Session, create_test_user):
     colaborador = create_test_user(email="colaborador_dash@empresa.com", role="colaborador")
 
     equipments = [
-        Equipment(name="Note 1", status="disponível"),
-        Equipment(name="Monitor 1", status="em_uso"),
+        Equipment(description="Note 1", serial_number="SN-DASH-1", equipment_type="Notebook", location="TI", status="Ocioso"),
+        Equipment(description="Monitor 1", serial_number="SN-DASH-2", equipment_type="Monitor", location="TI", status="Em uso"),
     ]
     db_session.add_all(equipments)
 
