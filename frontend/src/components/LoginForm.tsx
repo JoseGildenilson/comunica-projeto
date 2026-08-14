@@ -63,12 +63,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
       )}
 
       {/* Campo Email */}
-      <div className="space-y-1">
-        <label htmlFor="email" className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+      <div className="space-y-1.5">
+        <label htmlFor="email" className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
           Endereço de Email
         </label>
         <div className="relative group">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-400 transition-colors">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-500 group-focus-within:text-zinc-300 transition-colors">
             <Mail className="w-4 h-4" />
           </div>
           <input
@@ -81,27 +81,27 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
             }}
             disabled={isSubmitting}
             placeholder="tecnico@empresa.com"
-            className={`w-full pl-9 pr-3 py-2.5 bg-slate-900/80 border rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all duration-200 ${
+            className={`w-full pl-9 pr-3 py-2 bg-zinc-950 border rounded-xl text-xs text-zinc-100 placeholder-zinc-500 outline-none transition-all ${
               fieldErrors.email
-                ? 'border-red-500/80 focus:ring-2 focus:ring-red-500/30'
-                : 'border-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30'
+                ? 'border-red-500/70 focus:border-red-500'
+                : 'border-zinc-800 focus:border-zinc-500'
             } disabled:opacity-50 disabled:cursor-not-allowed`}
           />
         </div>
         {fieldErrors.email && (
-          <p className="text-[11px] text-red-400 font-medium pl-1">{fieldErrors.email}</p>
+          <p className="text-[11px] text-red-400 font-medium pl-0.5">{fieldErrors.email}</p>
         )}
       </div>
 
       {/* Campo Senha */}
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <label htmlFor="password" className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <label htmlFor="password" className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
             Senha
           </label>
         </div>
         <div className="relative group">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-400 transition-colors">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-500 group-focus-within:text-zinc-300 transition-colors">
             <Lock className="w-4 h-4" />
           </div>
           <input
@@ -114,10 +114,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
             }}
             disabled={isSubmitting}
             placeholder="••••••••••••"
-            className={`w-full pl-9 pr-10 py-2.5 bg-slate-900/80 border rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all duration-200 ${
+            className={`w-full pl-9 pr-10 py-2 bg-zinc-950 border rounded-xl text-xs text-zinc-100 placeholder-zinc-500 outline-none transition-all ${
               fieldErrors.password
-                ? 'border-red-500/80 focus:ring-2 focus:ring-red-500/30'
-                : 'border-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30'
+                ? 'border-red-500/70 focus:border-red-500'
+                : 'border-zinc-800 focus:border-zinc-500'
             } disabled:opacity-50 disabled:cursor-not-allowed`}
           />
           <button
@@ -125,30 +125,30 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
             onClick={() => setShowPassword(!showPassword)}
             disabled={isSubmitting}
             aria-label={showPassword ? 'Ocultar senha' : 'Exibir senha'}
-            className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 focus:outline-none transition-colors"
+            className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 hover:text-zinc-300 focus:outline-none transition-colors cursor-pointer"
           >
             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
         </div>
         {fieldErrors.password && (
-          <p className="text-[11px] text-red-400 font-medium pl-1">{fieldErrors.password}</p>
+          <p className="text-[11px] text-red-400 font-medium pl-0.5">{fieldErrors.password}</p>
         )}
       </div>
 
-      {/* Botão de Envio (Entrar) com Micro-interações de Hover e Glow (RN-UI-07) */}
+      {/* Botão de Envio (Entrar) - Visual Sólido de Alto Contraste */}
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm font-semibold rounded-xl shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-glow-brand active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none flex items-center justify-center gap-2 mt-1"
+        className="w-full py-2.5 px-4 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold rounded-xl transition-all duration-150 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-zinc-400/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2 mt-2 cursor-pointer shadow-sm"
       >
         {isSubmitting ? (
           <>
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-900" />
             <span>Validando credenciais...</span>
           </>
         ) : (
           <>
-            <LogIn className="w-4 h-4" />
+            <LogIn className="w-3.5 h-3.5" />
             <span>Entrar no Sistema</span>
           </>
         )}

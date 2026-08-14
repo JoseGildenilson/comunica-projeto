@@ -15,7 +15,6 @@ import {
   Printer,
   Calendar,
   MapPin,
-  Tag as TagIcon,
 } from 'lucide-react';
 import { equipmentApi } from '../api/equipmentApi';
 import { Equipment, EquipmentFilterParams, EquipmentTag } from '../types/equipment';
@@ -142,15 +141,57 @@ export const EquipmentListPage: React.FC = () => {
 
   const getEquipmentIcon = (type: string) => {
     const t = type.toLowerCase();
-    if (t.includes('notebook') || t.includes('laptop')) return <Laptop className="w-5 h-5 text-blue-400" />;
-    if (t.includes('monitor') || t.includes('tela')) return <Monitor className="w-5 h-5 text-indigo-400" />;
-    if (t.includes('impressora')) return <Printer className="w-5 h-5 text-amber-400" />;
-    if (t.includes('celular') || t.includes('tablet')) return <Smartphone className="w-5 h-5 text-emerald-400" />;
-    return <HardDrive className="w-5 h-5 text-blue-400" />;
+    if (t.includes('notebook') || t.includes('laptop')) return <Laptop className="w-5 h-5 text-zinc-300" />;
+    if (t.includes('monitor') || t.includes('tela')) return <Monitor className="w-5 h-5 text-zinc-300" />;
+    if (t.includes('impressora')) return <Printer className="w-5 h-5 text-zinc-300" />;
+    if (t.includes('celular') || t.includes('tablet')) return <Smartphone className="w-5 h-5 text-zinc-300" />;
+    return <HardDrive className="w-5 h-5 text-zinc-300" />;
+  };
+
+  const renderStatusPill = (status: string) => {
+    const s = status.toLowerCase();
+    if (s.includes('uso') || s.includes('ativo')) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 font-medium text-xs">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+          {status}
+        </span>
+      );
+    }
+    if (s.includes('manuten') || s.includes('repar') || s.includes('recolhimento')) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 font-medium text-xs">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+          {status}
+        </span>
+      );
+    }
+    if (s.includes('ocioso') || s.includes('estoque') || s.includes('dispon')) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-medium text-xs">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+          {status}
+        </span>
+      );
+    }
+    if (s.includes('baixado') || s.includes('descarte') || s.includes('inativ')) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-600/20 text-zinc-400 font-medium text-xs">
+          <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
+          {status}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 font-medium text-xs">
+        <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
+        {status}
+      </span>
+    );
   };
 
   const formatDate = (dateStr?: string | null) => {
-    if (!dateStr) return 'N/A';
+    if (!dateStr) return 'Não registrada';
     const date = new Date(dateStr);
     return date.toLocaleDateString('pt-BR');
   };
@@ -170,70 +211,66 @@ export const EquipmentListPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <SideMenu />
-            
-            {/* Botão ← Voltar ao Dashboard */}
-            <button
-              onClick={() => navigate('/dashboard')}
-              data-testid="back-to-dashboard-btn"
-              className="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors cursor-pointer flex items-center gap-2 text-xs font-semibold"
-              title="Voltar ao Dashboard"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Voltar ao Dashboard</span>
-            </button>
+    <div className="min-h-screen bg-[#121212] text-[#E0E0E0] font-sans antialiased flex flex-col selection:bg-zinc-800 selection:text-white">
+      {/* Top Navigation Bar */}
+      <header className="border-b border-[#333333] bg-[#1E1E1E] px-6 py-4 flex items-center justify-between sticky top-0 z-30">
+        <div className="flex items-center gap-4">
+          <SideMenu />
 
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-xl font-extrabold text-white tracking-wide">Equipamentos</h1>
-                <span className="px-2.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold">
-                  {total} {total === 1 ? 'equipamento' : 'equipamentos'}
-                </span>
-              </div>
-              <p className="text-xs text-slate-400">Gestão centralizada de patrimônio e ativos de TI</p>
-            </div>
-          </div>
-
+          {/* Back to Dashboard */}
           <button
-            onClick={() => setIsNewModalOpen(true)}
-            data-testid="new-equipment-btn"
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold btn-glow-transition shadow-lg shadow-blue-500/20 flex items-center gap-2 cursor-pointer"
+            onClick={() => navigate('/dashboard')}
+            data-testid="back-to-dashboard-btn"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-[#333333] hover:bg-[#333333] transition-colors text-sm font-medium text-[#E0E0E0] cursor-pointer"
+            title="Voltar ao Dashboard"
           >
-            <Plus className="w-4 h-4" />
-            <span>Novo Equipamento</span>
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Voltar ao Dashboard</span>
           </button>
+
+          {/* Page Title & Count */}
+          <div className="flex items-center gap-3 ml-2">
+            <h1 className="text-xl font-semibold text-white">Equipamentos</h1>
+            <span className="px-2 py-0.5 rounded bg-[#333333] text-xs text-[#9E9E9E] font-medium font-mono">
+              {total} {total === 1 ? 'item' : 'itens'}
+            </span>
+          </div>
         </div>
+
+        {/* Action Button */}
+        <button
+          onClick={() => setIsNewModalOpen(true)}
+          data-testid="new-equipment-btn"
+          className="flex items-center gap-2 px-4 py-2 bg-white text-[#121212] font-semibold rounded-md hover:bg-gray-200 transition-colors text-sm cursor-pointer shadow-sm active:scale-[0.99]"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Novo Equipamento</span>
+        </button>
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-6 space-y-6">
-        {/* Barra de Filtros Sempre Visível estilo Google Sheets */}
-        <section className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-              <SlidersHorizontal className="w-4 h-4 text-blue-400" />
-              <span>Filtros Avançados & Seleção Múltipla</span>
+      <main className="flex-1 overflow-auto p-6 max-w-7xl mx-auto w-full space-y-5">
+        {/* Filters & Search Section */}
+        <section className="bg-[#1E1E1E] border border-[#333333] rounded-lg p-4 mb-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-[#9E9E9E] font-medium text-sm">
+              <SlidersHorizontal className="w-4 h-4 text-[#9E9E9E]" />
+              <span>Filtros &amp; Busca</span>
             </div>
 
             {hasActiveFilters && (
               <button
                 onClick={handleClearFilters}
-                className="text-xs text-slate-400 hover:text-red-400 flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="text-xs text-[#9E9E9E] hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3 h-3" />
                 <span>Limpar filtros</span>
               </button>
             )}
           </div>
 
-          {/* Grid de Dropdowns de Seleção Múltipla */}
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Filtro Múltiplo: Tipo */}
+          <div className="flex flex-wrap gap-3">
+            {/* Multi-Select Dropdowns */}
             <MultiSelectFilterDropdown
               label="Tipo"
               options={types.map((t) => t.name)}
@@ -243,7 +280,6 @@ export const EquipmentListPage: React.FC = () => {
               testId="filter-type-dropdown"
             />
 
-            {/* Filtro Múltiplo: Localização */}
             <MultiSelectFilterDropdown
               label="Localização"
               options={locations.map((l) => l.name)}
@@ -253,7 +289,6 @@ export const EquipmentListPage: React.FC = () => {
               testId="filter-location-dropdown"
             />
 
-            {/* Filtro Múltiplo: Situação */}
             <MultiSelectFilterDropdown
               label="Situação"
               options={statuses.map((s) => s.name)}
@@ -263,11 +298,11 @@ export const EquipmentListPage: React.FC = () => {
               testId="filter-status-dropdown"
             />
 
-            {/* Filtro Textual Múltiplo: Nº Patrimônio */}
-            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1 text-xs">
+            {/* Text Input Filters */}
+            <div className="relative">
               <input
                 type="text"
-                placeholder="Adicionar Patrimônio..."
+                placeholder="Patrimônio..."
                 value={inputPatrimony}
                 onChange={(e) => setInputPatrimony(e.target.value)}
                 onKeyDown={(e) => {
@@ -276,20 +311,19 @@ export const EquipmentListPage: React.FC = () => {
                     handleAddTextFilter(inputPatrimony, filterPatrimonies, setFilterPatrimonies, () => setInputPatrimony(''));
                   }
                 }}
-                className="bg-transparent text-slate-200 outline-none w-32 placeholder:text-slate-500"
+                className="bg-[#121212] border border-[#333333] text-[#E0E0E0] text-sm rounded-md px-3 py-2 focus:ring-1 focus:ring-[#9E9E9E] focus:border-[#9E9E9E] focus:outline-none placeholder-[#9E9E9E]/50 w-32 font-mono"
               />
               {filterPatrimonies.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold text-[10px]">
+                <span className="absolute right-2 top-2.5 px-1.5 py-0.2 rounded bg-[#333333] text-white font-mono font-bold text-[10px]">
                   {filterPatrimonies.length}
                 </span>
               )}
             </div>
 
-            {/* Filtro Textual Múltiplo: Nº Série */}
-            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1 text-xs">
+            <div className="relative">
               <input
                 type="text"
-                placeholder="Adicionar Série..."
+                placeholder="Série..."
                 value={inputSerial}
                 onChange={(e) => setInputSerial(e.target.value)}
                 onKeyDown={(e) => {
@@ -298,20 +332,19 @@ export const EquipmentListPage: React.FC = () => {
                     handleAddTextFilter(inputSerial, filterSerials, setFilterSerials, () => setInputSerial(''));
                   }
                 }}
-                className="bg-transparent text-slate-200 outline-none w-28 placeholder:text-slate-500"
+                className="bg-[#121212] border border-[#333333] text-[#E0E0E0] text-sm rounded-md px-3 py-2 focus:ring-1 focus:ring-[#9E9E9E] focus:border-[#9E9E9E] focus:outline-none placeholder-[#9E9E9E]/50 w-32 font-mono"
               />
               {filterSerials.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold text-[10px]">
+                <span className="absolute right-2 top-2.5 px-1.5 py-0.2 rounded bg-[#333333] text-white font-mono font-bold text-[10px]">
                   {filterSerials.length}
                 </span>
               )}
             </div>
 
-            {/* Filtro Textual Múltiplo: Nº Produto */}
-            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1 text-xs">
+            <div className="relative">
               <input
                 type="text"
-                placeholder="Adicionar Produto..."
+                placeholder="Produto..."
                 value={inputProduct}
                 onChange={(e) => setInputProduct(e.target.value)}
                 onKeyDown={(e) => {
@@ -320,45 +353,47 @@ export const EquipmentListPage: React.FC = () => {
                     handleAddTextFilter(inputProduct, filterProducts, setFilterProducts, () => setInputProduct(''));
                   }
                 }}
-                className="bg-transparent text-slate-200 outline-none w-28 placeholder:text-slate-500"
+                className="bg-[#121212] border border-[#333333] text-[#E0E0E0] text-sm rounded-md px-3 py-2 focus:ring-1 focus:ring-[#9E9E9E] focus:border-[#9E9E9E] focus:outline-none placeholder-[#9E9E9E]/50 w-32 font-mono"
               />
               {filterProducts.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold text-[10px]">
+                <span className="absolute right-2 top-2.5 px-1.5 py-0.2 rounded bg-[#333333] text-white font-mono font-bold text-[10px]">
                   {filterProducts.length}
                 </span>
               )}
             </div>
 
-            {/* Busca Geral */}
-            <div className="relative flex-1 min-w-[180px]">
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+            {/* Global Search */}
+            <div className="relative flex-1 min-w-[200px]">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#9E9E9E]">
+                <Search className="w-4 h-4" />
+              </div>
               <input
                 type="text"
                 placeholder="Pesquisar..."
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-slate-200 outline-none input-focus-glow placeholder:text-slate-500"
+                className="bg-[#121212] border border-[#333333] text-[#E0E0E0] text-sm rounded-md pl-9 pr-3 py-2 w-full focus:ring-1 focus:ring-[#9E9E9E] focus:border-[#9E9E9E] focus:outline-none placeholder-[#9E9E9E]/50"
               />
             </div>
           </div>
 
-          {/* Chips de Valores Selecionados */}
+          {/* Active Chips */}
           {(filterPatrimonies.length > 0 || filterSerials.length > 0 || filterProducts.length > 0) && (
-            <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-slate-800/60 text-[11px]">
+            <div className="flex items-center gap-1.5 flex-wrap pt-3 border-t border-[#333333] mt-3 text-[11px]">
               {filterPatrimonies.map((pat) => (
-                <span key={pat} className="px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 flex items-center gap-1">
+                <span key={pat} className="px-2 py-0.5 rounded bg-[#121212] border border-[#333333] text-white font-mono flex items-center gap-1">
                   Patrimônio: {pat}
                   <button onClick={() => setFilterPatrimonies(filterPatrimonies.filter((p) => p !== pat))} className="hover:text-red-400">×</button>
                 </span>
               ))}
               {filterSerials.map((ser) => (
-                <span key={ser} className="px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 flex items-center gap-1">
+                <span key={ser} className="px-2 py-0.5 rounded bg-[#121212] border border-[#333333] text-white font-mono flex items-center gap-1">
                   Série: {ser}
                   <button onClick={() => setFilterSerials(filterSerials.filter((s) => s !== ser))} className="hover:text-red-400">×</button>
                 </span>
               ))}
               {filterProducts.map((prod) => (
-                <span key={prod} className="px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 flex items-center gap-1">
+                <span key={prod} className="px-2 py-0.5 rounded bg-[#121212] border border-[#333333] text-white font-mono flex items-center gap-1">
                   Produto: {prod}
                   <button onClick={() => setFilterProducts(filterProducts.filter((pr) => pr !== prod))} className="hover:text-red-400">×</button>
                 </span>
@@ -367,142 +402,143 @@ export const EquipmentListPage: React.FC = () => {
           )}
         </section>
 
-        {/* Área de Ordenação */}
-        <div className="flex items-center justify-between text-xs text-slate-400 px-1">
-          <div className="flex items-center gap-2">
-            <span>Ordenar por:</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-slate-200 outline-none cursor-pointer"
-            >
-              <option value="created_at">Mais recentes / Antigos</option>
-              <option value="last_maintenance_at">Última manutenção</option>
-              <option value="serial_number">Nº Série</option>
-              <option value="patrimony_number">Nº Patrimônio</option>
-              <option value="equipment_type">Tipo</option>
-              <option value="location">Localização</option>
-            </select>
+        {/* List Header Controls */}
+        <div className="flex items-center justify-between mb-4 px-1">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-[#9E9E9E]">Ordenar por:</span>
+            <div className="relative">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="appearance-none bg-[#1E1E1E] border border-[#333333] text-[#E0E0E0] text-sm rounded-md pl-3 pr-8 py-1.5 focus:ring-1 focus:ring-[#9E9E9E] focus:border-[#9E9E9E] focus:outline-none cursor-pointer"
+              >
+                <option value="created_at">Mais recentes / Antigos</option>
+                <option value="last_maintenance_at">Última manutenção</option>
+                <option value="serial_number">Nº Série</option>
+                <option value="patrimony_number">Nº Patrimônio</option>
+                <option value="equipment_type">Tipo</option>
+                <option value="location">Localização</option>
+              </select>
+            </div>
 
             <button
               onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}
-              className="px-2 py-1 bg-slate-900 border border-slate-800 rounded-lg text-slate-300 hover:text-white transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1E1E1E] border border-[#333333] rounded-md text-sm text-[#E0E0E0] hover:bg-[#333333] transition-colors cursor-pointer"
             >
               {sortDir === 'asc' ? '↑ Crescente' : '↓ Decrescente'}
             </button>
           </div>
 
-          <div>
-            Página <strong className="text-white">{page}</strong> de <strong className="text-white">{pages}</strong>
+          <div className="text-sm text-[#9E9E9E]">
+            Pág. <span className="text-white font-medium font-mono">{page}</span> de <span className="text-white font-medium font-mono">{pages}</span>
           </div>
         </div>
 
-        {/* Listagem com Cores Intercaladas (Zebra Striping) & Layout Horizontal Limpo Restaurado */}
+        {/* Equipment List */}
         {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center gap-3 text-slate-500">
-            <div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
-            <p className="text-xs">Carregando patrimônio...</p>
+          <div className="py-20 flex flex-col items-center justify-center gap-3 text-[#9E9E9E]">
+            <div className="w-6 h-6 border-2 border-[#333333] border-t-white rounded-full animate-spin" />
+            <p className="text-xs">Carregando equipamentos...</p>
           </div>
         ) : equipments.length === 0 ? (
-          <div className="py-16 text-center bg-slate-900/30 border border-slate-800/60 rounded-2xl space-y-2">
-            <HardDrive className="w-10 h-10 text-slate-600 mx-auto" />
-            <p className="text-sm font-semibold text-slate-300">Nenhum equipamento encontrado</p>
-            <p className="text-xs text-slate-500">Tente ajustar os filtros de pesquisa para visualizar outros ativos.</p>
+          <div className="py-16 text-center bg-[#1E1E1E] border border-[#333333] rounded-lg space-y-2">
+            <HardDrive className="w-8 h-8 text-[#9E9E9E] mx-auto" />
+            <p className="text-sm font-semibold text-white">Nenhum equipamento encontrado</p>
+            <p className="text-xs text-[#9E9E9E]">Tente ajustar os filtros de pesquisa para visualizar outros ativos.</p>
           </div>
         ) : (
-          <div className="space-y-4 sm:space-y-5">
+          <div className="flex flex-col gap-3">
             {equipments.map((item, index) => {
-              // Intercalação de cores nos blocos com alto contraste, respiro interno ajustado e tamanho de fonte refinado
-              const isEven = index % 2 === 0;
-              const cardBg = isEven
-                ? 'bg-slate-900 border-2 border-slate-700/90 shadow-xl shadow-black/50'
-                : 'bg-slate-900/60 border-2 border-slate-800/90 shadow-lg shadow-black/40';
-
               return (
-                <div
+                <article
                   key={item.id}
                   onClick={() => navigate(`/equipamentos/${item.id}`)}
-                  style={{ animationDelay: `${index * 40}ms` }}
+                  style={{ animationDelay: `${index * 20}ms` }}
                   data-testid={`equipment-card-${item.id}`}
-                  className={`${cardBg} hover:border-blue-500/80 rounded-2xl p-5 sm:px-6 sm:py-5 transition-all duration-200 hover:shadow-2xl hover:shadow-blue-500/10 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-5 animate-slide-in-right opacity-0`}
+                  className="bg-[#1E1E1E] border border-[#333333] rounded-lg p-4 flex items-start gap-4 hover:border-gray-500 transition-colors cursor-pointer animate-slide-in-right opacity-0"
                 >
-                  {/* Lado Esquerdo: Ícone + Título Refinado + Metadados Inline */}
-                  <div className="flex items-start sm:items-center gap-4">
-                    <div className="p-3 bg-slate-950/90 border border-slate-700/80 rounded-xl shrink-0 shadow-inner">
-                      {getEquipmentIcon(item.equipment_type)}
+                  {/* Icon Box */}
+                  <div className="w-12 h-12 rounded-lg bg-[#121212] border border-[#333333] flex items-center justify-center shrink-0 text-[#9E9E9E]">
+                    {getEquipmentIcon(item.equipment_type)}
+                  </div>
+
+                  {/* Details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <h3 className="text-base font-medium text-white truncate">
+                        {item.description}
+                      </h3>
+                      {item.brand && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-white/10 text-gray-300">
+                          {item.brand}
+                        </span>
+                      )}
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-white/10 text-gray-300 font-mono">
+                        {item.equipment_type}
+                      </span>
                     </div>
 
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-sm sm:text-base font-bold text-white tracking-wide">{item.description}</h3>
-                        {item.brand && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-300 font-medium">
-                            {item.brand}
-                          </span>
-                        )}
-                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-500/15 border border-blue-500/40 text-blue-400 font-bold">
-                          {item.equipment_type}
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-3 text-xs text-[#9E9E9E] mt-2 flex-wrap">
+                      {/* Status with Dot */}
+                      {renderStatusPill(item.status)}
 
-                      {/* Metadados Inline Organizados com Excelente Respiro */}
-                      <div className="flex items-center gap-3 text-xs text-slate-300 flex-wrap pt-0.5">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-blue-400" />
-                          <strong className="text-slate-200 font-semibold">{item.location}</strong>
-                        </span>
-                        <span className="text-slate-600">·</span>
-                        <span className="flex items-center gap-1">
-                          <TagIcon className="w-3.5 h-3.5 text-indigo-400" />
-                          <strong className="text-slate-200 font-semibold">{item.status}</strong>
-                        </span>
-                        {item.patrimony_number && (
-                          <>
-                            <span className="text-slate-600">·</span>
-                            <span>Patrimônio: <strong className="text-slate-100 font-semibold">{item.patrimony_number}</strong></span>
-                          </>
-                        )}
-                        <span className="text-slate-600">·</span>
-                        <span>SN: <strong className="text-slate-100 font-mono font-semibold">{item.serial_number}</strong></span>
-                      </div>
+                      <span className="text-[#333333]">•</span>
+
+                      {/* Location with Icon */}
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-[#9E9E9E]" />
+                        <span className="text-[#E0E0E0]">{item.location}</span>
+                      </span>
+
+                      {item.patrimony_number && (
+                        <>
+                          <span className="text-[#333333]">•</span>
+                          <span>Patrimônio: <span className="text-white font-mono font-medium">{item.patrimony_number}</span></span>
+                        </>
+                      )}
+
+                      <span className="text-[#333333]">•</span>
+                      <span>SN: <span className="text-white font-mono font-medium">{item.serial_number}</span></span>
                     </div>
                   </div>
 
-                  {/* Lado Direito: Data da Última Manutenção */}
-                  <div className="text-right shrink-0 border-t md:border-t-0 border-slate-800/90 pt-2.5 md:pt-0 flex md:flex-col justify-between items-center md:items-end text-xs text-slate-400">
-                    <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Última Manutenção</span>
-                    <span className="flex items-center gap-1 text-slate-100 font-bold mt-0.5 text-xs sm:text-sm">
-                      <Calendar className="w-3.5 h-3.5 text-blue-400" />
-                      {formatDate(item.last_maintenance_at)}
+                  {/* Meta Info: Última Manutenção */}
+                  <div className="shrink-0 text-right flex flex-col justify-between h-full py-1 min-w-[120px]">
+                    <span className="text-[10px] font-medium text-[#9E9E9E] uppercase tracking-wider mb-1 font-mono">
+                      Última Manutenção
                     </span>
+                    <div className="flex items-center justify-end gap-1.5 text-xs text-[#E0E0E0] font-mono">
+                      <Calendar className="w-3.5 h-3.5 text-[#9E9E9E]" />
+                      <span>{formatDate(item.last_maintenance_at)}</span>
+                    </div>
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>
         )}
 
-        {/* Paginação */}
+        {/* Pagination Controls */}
         {pages > 1 && (
-          <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+          <div className="flex items-center justify-between pt-4 border-t border-[#333333]">
             <button
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="px-3.5 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 disabled:opacity-40 rounded-xl text-xs flex items-center gap-1 transition-colors cursor-pointer"
+              className="px-3 py-1.5 bg-[#1E1E1E] border border-[#333333] hover:bg-[#333333] text-[#E0E0E0] disabled:opacity-40 rounded-md text-xs flex items-center gap-1 transition-colors cursor-pointer"
             >
-              <ChevronLeft className="w-4 h-4" /> Anterior
+              <ChevronLeft className="w-3.5 h-3.5" /> Anterior
             </button>
 
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-[#9E9E9E] font-mono">
               Página <strong className="text-white">{page}</strong> de <strong className="text-white">{pages}</strong>
             </span>
 
             <button
               disabled={page >= pages}
               onClick={() => setPage((p) => Math.min(pages, p + 1))}
-              className="px-3.5 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 disabled:opacity-40 rounded-xl text-xs flex items-center gap-1 transition-colors cursor-pointer"
+              className="px-3 py-1.5 bg-[#1E1E1E] border border-[#333333] hover:bg-[#333333] text-[#E0E0E0] disabled:opacity-40 rounded-md text-xs flex items-center gap-1 transition-colors cursor-pointer"
             >
-              Próxima <ChevronRight className="w-4 h-4" />
+              Próxima <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         )}

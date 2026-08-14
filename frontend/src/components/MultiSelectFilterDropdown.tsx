@@ -56,40 +56,42 @@ export const MultiSelectFilterDropdown: React.FC<MultiSelectFilterDropdownProps>
     return `${label} (${selectedValues.length})`;
   };
 
+  const isActive = selectedValues.length > 0;
+
   return (
     <div className="relative inline-block text-left" ref={dropdownRef} data-testid={testId}>
       {/* Botão Gatilho */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center justify-between gap-2 transition-all cursor-pointer ${
-          selectedValues.length > 0
-            ? 'bg-blue-600/15 border-blue-500/50 text-blue-400 shadow-sm shadow-blue-500/10'
-            : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+        className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center justify-between gap-2 transition-all cursor-pointer ${
+          isActive
+            ? 'bg-zinc-800 border-zinc-700 text-zinc-100 shadow-sm'
+            : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-700 hover:text-zinc-100'
         }`}
       >
         <span className="truncate max-w-[140px]">{getButtonText()}</span>
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180 text-blue-400' : 'text-slate-400'}`} />
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${isOpen ? 'rotate-180 text-zinc-200' : 'text-zinc-400'}`} />
       </button>
 
-      {/* Painel Dropdown Estilo Google Sheets */}
+      {/* Painel Dropdown Estilo Linear / Google Sheets */}
       {isOpen && (
-        <div className="absolute left-0 mt-1.5 w-64 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl z-50 p-3 space-y-2.5 animate-fade-in">
+        <div className="absolute left-0 mt-1.5 w-60 bg-zinc-900 border border-zinc-800 rounded-xl shadow-dropdown z-50 p-2.5 space-y-2 animate-fade-in">
           {/* Busca Interna */}
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+            <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={placeholder}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-white outline-none input-focus-glow placeholder:text-slate-500"
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-zinc-100 outline-none focus:border-zinc-500 placeholder:text-zinc-500"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch('')}
-                className="absolute right-2 top-2 text-slate-500 hover:text-white"
+                className="absolute right-2 top-2 text-zinc-500 hover:text-zinc-200"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -97,9 +99,9 @@ export const MultiSelectFilterDropdown: React.FC<MultiSelectFilterDropdownProps>
           </div>
 
           {/* Lista de Opções com Checkboxes */}
-          <div className="max-h-48 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+          <div className="max-h-48 overflow-y-auto space-y-0.5 pr-1 custom-scrollbar">
             {filteredOptions.length === 0 ? (
-              <p className="text-[11px] text-slate-500 py-2 text-center">Nenhuma opção encontrada</p>
+              <p className="text-[11px] text-zinc-500 py-3 text-center">Nenhuma opção encontrada</p>
             ) : (
               filteredOptions.map((opt) => {
                 const isSelected = selectedValues.includes(opt);
@@ -107,13 +109,13 @@ export const MultiSelectFilterDropdown: React.FC<MultiSelectFilterDropdownProps>
                   <label
                     key={opt}
                     onClick={() => toggleOption(opt)}
-                    className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-slate-800/80 cursor-pointer select-none transition-colors"
+                    className="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 cursor-pointer select-none transition-colors"
                   >
                     <div
-                      className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                      className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors shrink-0 ${
                         isSelected
-                          ? 'bg-blue-600 border-blue-500 text-white'
-                          : 'bg-slate-950 border-slate-700 hover:border-slate-500'
+                          ? 'bg-zinc-100 border-zinc-100 text-zinc-950'
+                          : 'bg-zinc-950 border-zinc-700 hover:border-zinc-500'
                       }`}
                     >
                       {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
@@ -126,15 +128,15 @@ export const MultiSelectFilterDropdown: React.FC<MultiSelectFilterDropdownProps>
           </div>
 
           {/* Rodapé com botão Desmarcar Tudo (RN-11) */}
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
-            <span className="text-slate-400">
-              {selectedValues.length} {selectedValues.length === 1 ? 'selecionado' : 'selecionados'}
+          <div className="pt-2 border-t border-zinc-800 flex items-center justify-between text-[11px]">
+            <span className="text-zinc-500 font-mono text-[10px]">
+              {selectedValues.length} {selectedValues.length === 1 ? 'sel.' : 'sel.'}
             </span>
             {selectedValues.length > 0 && (
               <button
                 type="button"
                 onClick={handleClearAll}
-                className="text-blue-400 hover:text-blue-300 font-semibold cursor-pointer"
+                className="text-zinc-300 hover:text-white font-medium cursor-pointer text-[11px]"
               >
                 Desmarcar tudo
               </button>

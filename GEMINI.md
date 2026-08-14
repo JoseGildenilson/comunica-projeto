@@ -11,7 +11,7 @@ As especificações são a fonte de verdade para o comportamento esperado do sis
 - NUNCA pule a criação ou atualização do `spec.md`.
 - NUNCA pule a criação ou atualização do `tasks.md`.
 - Antes de implementar uma feature, verifique se `spec.md` e `tasks.md` estão consistentes com a Constituição do Projeto.
-- Se uma especificação entrar em conflito com a Constituição, a Constituição deve prevalecer, e o conflito deve ser identificado antes da implementação.
+- Se uma especificação entrar em conflito com este arquivo, a este arquivo deve prevalecer, e o conflito deve ser identificado antes da implementação.
 - Não invente requisitos funcionais que não estejam definidos na especificação. Quando houver ambiguidade, questione antes de implementar.
 - Ao identificar uma decisão técnica que possa afetar as regras da Constituição, sinalize a necessidade de revisão antes de introduzir uma nova convenção.
 
@@ -19,14 +19,13 @@ As especificações são a fonte de verdade para o comportamento esperado do sis
 
 Para uma nova feature ou alteração significativa:
 
-1. Consultar `.spec/constituicao.md`.
-2. Consultar a especificação existente da feature em `.spec/features/`.
-3. Criar ou atualizar `spec.md` utilizando BDD quando aplicável.
-4. Criar ou atualizar `tasks.md`.
-5. Implementar a feature seguindo as especificações e a Constituição.
-6. Criar ou atualizar os testes automatizados correspondentes.
-7. Executar a suíte de testes.
-8. Confirmar que a implementação atende às especificações antes de considerá-la concluída.
+1. Consultar a especificação existente da feature em `.spec/features/`.
+2. Criar ou atualizar `spec.md` utilizando BDD quando aplicável.
+3. Criar ou atualizar `tasks.md`.
+4. Implementar a feature seguindo as especificações e a Constituição.
+5. Criar ou atualizar os testes automatizados correspondentes.
+6. Executar a suíte de testes.
+7. Confirmar que a implementação atende às especificações antes de considerá-la concluída.
 
 ---
 

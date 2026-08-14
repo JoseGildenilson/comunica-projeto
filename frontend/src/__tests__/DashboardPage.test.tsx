@@ -23,18 +23,14 @@ vi.mock('../api/dashboardApi', () => ({
 }));
 
 describe('Página DashboardPage', () => {
-  it('Renderiza visão completa de Técnico com os 3 cards e item de menu de patrimônio', async () => {
+  it('Renderiza visão de Técnico com card de acesso a equipamentos e item de menu', async () => {
     (authApi.getMe as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: 1,
       email: 'tecnico@empresa.com',
       role: 'tecnico',
       is_active: true,
     });
-    (dashboardApi.getMetrics as ReturnType<typeof vi.fn>).mockResolvedValue({
-      tickets_pending: 5,
-      tickets_in_progress: 2,
-      equipments_total: 10,
-    });
+    (dashboardApi.getMetrics as ReturnType<typeof vi.fn>).mockResolvedValue({});
 
     render(
       <AuthProvider>
@@ -47,9 +43,9 @@ describe('Página DashboardPage', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Tickets Pendentes')).toBeInTheDocument();
-      expect(screen.getByText('Tickets em Andamento')).toBeInTheDocument();
+      expect(screen.getByTestId('equipamentos-card')).toBeInTheDocument();
       expect(screen.getByText('Equipamentos')).toBeInTheDocument();
+      expect(screen.getByText('Acessar Inventário')).toBeInTheDocument();
     });
 
     // Abrir Menu Lateral (RN-01)
@@ -68,11 +64,7 @@ describe('Página DashboardPage', () => {
       role: 'colaborador',
       is_active: true,
     });
-    (dashboardApi.getMetrics as ReturnType<typeof vi.fn>).mockResolvedValue({
-      tickets_pending: 1,
-      tickets_in_progress: 1,
-      equipments_total: null,
-    });
+    (dashboardApi.getMetrics as ReturnType<typeof vi.fn>).mockResolvedValue({});
 
     render(
       <AuthProvider>
@@ -85,9 +77,8 @@ describe('Página DashboardPage', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Tickets Pendentes')).toBeInTheDocument();
-      expect(screen.getByText('Tickets em Andamento')).toBeInTheDocument();
-      expect(screen.queryByText('Equipamentos')).not.toBeInTheDocument();
+      expect(screen.getByText('Portal de Ativos Corporativos')).toBeInTheDocument();
+      expect(screen.queryByTestId('equipamentos-card')).not.toBeInTheDocument();
     });
 
     // Abrir Menu Lateral
@@ -106,11 +97,7 @@ describe('Página DashboardPage', () => {
       role: 'tecnico',
       is_active: true,
     });
-    (dashboardApi.getMetrics as ReturnType<typeof vi.fn>).mockResolvedValue({
-      tickets_pending: 0,
-      tickets_in_progress: 0,
-      equipments_total: 0,
-    });
+    (dashboardApi.getMetrics as ReturnType<typeof vi.fn>).mockResolvedValue({});
     (authApi.logout as ReturnType<typeof vi.fn>).mockResolvedValue({ message: 'Logout realizado com sucesso.' });
 
     render(

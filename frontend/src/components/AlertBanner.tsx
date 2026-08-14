@@ -17,17 +17,17 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
   return (
     <div
       role="alert"
-      className={`p-4 rounded-xl flex items-start gap-3 text-sm transition-all duration-300 ${
+      className={`p-3.5 rounded-xl flex items-start gap-2.5 text-xs transition-all ${
         isRateLimit
-          ? 'bg-amber-950/70 border border-amber-500/40 text-amber-200 shadow-lg shadow-amber-900/20'
-          : 'bg-red-950/70 border border-red-500/40 text-red-200 shadow-glow-error'
+          ? 'bg-amber-950/70 border border-amber-500/40 text-amber-200'
+          : 'bg-red-950/70 border border-red-500/40 text-red-200'
       }`}
     >
       <div className="shrink-0 mt-0.5">
         {isRateLimit ? (
-          <ShieldAlert className="w-5 h-5 text-amber-400 animate-pulse" />
+          <ShieldAlert className="w-4 h-4 text-amber-400" />
         ) : (
-          <AlertCircle className="w-5 h-5 text-red-400" />
+          <AlertCircle className="w-4 h-4 text-red-400" />
         )}
       </div>
       <div className="flex-1 font-medium leading-relaxed">{message}</div>
@@ -36,9 +36,9 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
           onClick={onClose}
           type="button"
           aria-label="Fechar alerta"
-          className="shrink-0 p-1 hover:bg-white/10 rounded-lg transition-colors text-slate-400 hover:text-white"
+          className="shrink-0 p-1 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
         >
-          <X className="w-4 h-4" />
+          <X className="w-3.5 h-3.5" />
         </button>
       )}
     </div>
