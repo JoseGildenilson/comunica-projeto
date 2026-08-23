@@ -4,7 +4,7 @@ Nota: Em cumprimento à Constituição, os repositórios NÃO executam commit ou
 O controle de transação é feito no nível do caso de uso ou rota HTTP.
 """
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select, func, or_, desc, asc
+from sqlalchemy import select, update, func, or_, desc, asc
 from sqlalchemy.orm import Session
 from src.domain.models import (
     User,
@@ -202,6 +202,28 @@ class EquipmentRepository:
         self.db.add(equipment)
         return equipment
 
+    def get_distinct_values_by_prefix(
+        self,
+        field_name: str,
+        prefix: str,
+        limit: int = 10,
+    ) -> list[str]:
+        """Retorna valores distintos de um campo filtrados por prefixo e ordenados alfabeticamente."""
+        column = getattr(Equipment, field_name, None)
+        if column is None:
+            return []
+
+        stmt = (
+            select(column)
+            .where(column.is_not(None), column.ilike(f"{prefix}%"))
+            .distinct()
+            .order_by(asc(column))
+            .limit(limit)
+        )
+        results = self.db.execute(stmt).scalars().all()
+        return [r for r in results if r]
+
+
 
 class EquipmentTagRepository:
     """Repositório para gerenciamento das tags dinâmicas."""
@@ -234,6 +256,27 @@ class EquipmentTagRepository:
         """Adiciona nova tag à sessão."""
         self.db.add(tag)
         return tag
+
+    def get_by_id(self, tag_id: int) -> EquipmentTag | None:
+        """Busca tag por ID."""
+        stmt = select(EquipmentTag).where(EquipmentTag.id == tag_id)
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def delete(self, tag: EquipmentTag) -> None:
+        """Remove a tag da sessão."""
+        self.db.delete(tag)
+
+    def propagate_tag_rename(self, category: str, old_name: str, new_name: str) -> None:
+        """Atualiza o nome da tag em todos os equipamentos que utilizam o valor antigo."""
+        if category == "tipo":
+            stmt = update(Equipment).where(Equipment.equipment_type == old_name).values(equipment_type=new_name)
+            self.db.execute(stmt)
+        elif category == "localizacao":
+            stmt = update(Equipment).where(Equipment.location == old_name).values(location=new_name)
+            self.db.execute(stmt)
+        elif category == "situacao":
+            stmt = update(Equipment).where(Equipment.status == old_name).values(status=new_name)
+            self.db.execute(stmt)
 
 
 class EquipmentMovementRepository:

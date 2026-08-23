@@ -29,8 +29,10 @@ vi.mock('../api/equipmentApi', () => ({
     recordMaintenance: vi.fn(),
     updateMaintenance: vi.fn(),
     deleteMaintenance: vi.fn(),
+    getSuggestions: vi.fn(),
   },
 }));
+
 
 describe('Páginas e Componentes de Equipamentos (Frontend)', () => {
   beforeEach(() => {
@@ -87,6 +89,24 @@ describe('Páginas e Componentes de Equipamentos (Frontend)', () => {
       expect(screen.getByText('PAT-101')).toBeInTheDocument();
     });
 
+    // Testar inserção de chip no filtro de Patrimônio via Enter
+    const patInput = screen.getByTestId('filter-patrimony-input');
+    fireEvent.change(patInput, { target: { value: 'PAT-NOVO-1' } });
+    fireEvent.keyDown(patInput, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(screen.getByText('Patrimônio: PAT-NOVO-1')).toBeInTheDocument();
+      expect(screen.getByText('Limpar filtros')).toBeInTheDocument();
+    });
+
+    // Clicar em Limpar filtros
+    const clearBtn = screen.getByText('Limpar filtros');
+    fireEvent.click(clearBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Patrimônio: PAT-NOVO-1')).not.toBeInTheDocument();
+    });
+
     // Testar botão Voltar ao Dashboard (RN-EQ-06)
     const backDashBtn = screen.getByTestId('back-to-dashboard-btn');
     fireEvent.click(backDashBtn);
@@ -95,6 +115,7 @@ describe('Páginas e Componentes de Equipamentos (Frontend)', () => {
       expect(screen.getByText('Tela Dashboard')).toBeInTheDocument();
     });
   });
+
 
   it('Renderiza EquipmentDetailPage em tela única, com botão Voltar para Equipamentos, modo de edição em lote e histórico', async () => {
     (authApi.getMe as ReturnType<typeof vi.fn>).mockResolvedValue({

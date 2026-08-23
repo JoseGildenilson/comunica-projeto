@@ -11,6 +11,7 @@ from src.domain.schemas import (
     EquipmentResponse,
     EquipmentListResponse,
     EquipmentTagCreate,
+    EquipmentTagUpdate,
     EquipmentTagResponse,
     EquipmentMovementCreate,
     EquipmentMovementResponse,
@@ -29,7 +30,9 @@ from src.use_cases.equipment_use_cases import (
     UpdateMaintenanceUseCase,
     DeleteMaintenanceUseCase,
     ManageTagsUseCase,
+    GetSuggestionsUseCase,
 )
+
 
 router = APIRouter(prefix="/api/v1/equipments", tags=["Equipamentos"])
 
@@ -104,13 +107,74 @@ def create_tag(
 ):
     """Cria uma nova tag em tempo real (Role: Técnico)."""
     use_case = ManageTagsUseCase(db)
-    tag = use_case.create_tag(data)
-    db.commit()
-    db.refresh(tag)
-    return tag
+    try:
+        tag = use_case.create_tag(data)
+        db.commit()
+        db.refresh(tag)
+        return tag
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.put("/tags/{id}", response_model=EquipmentTagResponse)
+def update_tag(
+    id: int,
+    data: EquipmentTagUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_tecnico_role),
+):
+    """Renomeia uma tag e propaga a alteração nos equipamentos (Role: Técnico)."""
+    use_case = ManageTagsUseCase(db)
+    try:
+        tag = use_case.update_tag(tag_id=id, new_name=data.name)
+        db.commit()
+        db.refresh(tag)
+        return tag
+    except KeyError as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.delete("/tags/{id}", response_model=MessageResponse)
+def delete_tag(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_tecnico_role),
+):
+    """Exclui uma tag disponível (Role: Técnico)."""
+    use_case = ManageTagsUseCase(db)
+    try:
+        use_case.delete_tag(tag_id=id)
+        db.commit()
+        return MessageResponse(message="Tag excluída com sucesso.")
+    except KeyError as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+
+@router.get("/suggestions", response_model=List[str])
+def get_suggestions(
+    field: str = Query(..., description="Nome do campo: patrimony_number, serial_number, product_number"),
+    prefix: str = Query(..., description="Prefixo de busca (mínimo 2 caracteres)"),
+    limit: int = Query(default=10, ge=1, le=50, description="Quantidade máxima de sugestões"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_tecnico_role),
+):
+    """Retorna lista de sugestões de valores cadastrados por prefixo (Role: Técnico)."""
+    use_case = GetSuggestionsUseCase(db)
+    try:
+        return use_case.execute(field=field, prefix=prefix, limit=limit)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/{id}", response_model=EquipmentResponse)
+
 def get_equipment_detail(
     id: int,
     db: Session = Depends(get_db),

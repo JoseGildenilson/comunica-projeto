@@ -70,18 +70,56 @@ def test_equipment_repository_list_paginated_filtered_and_search(db_session: Ses
 
 
 def test_equipment_tag_repository(db_session: Session):
-    """Testa o repositório de tags."""
+    """Testa todos os métodos do repositório de tags."""
     repo = EquipmentTagRepository(db_session)
+    eq_repo = EquipmentRepository(db_session)
+
+    # Criação
     tag = EquipmentTag(category="tipo", name="Notebook")
     repo.create(tag)
+    loc_tag = EquipmentTag(category="localizacao", name="TI")
+    repo.create(loc_tag)
+    status_tag = EquipmentTag(category="situacao", name="Em uso")
+    repo.create(status_tag)
     db_session.commit()
 
+    # Listagens e buscas
     all_tags = repo.list_all()
-    assert len(all_tags) == 1
+    assert len(all_tags) == 3
     type_tags = repo.list_by_category("tipo")
     assert len(type_tags) == 1
     found = repo.get_by_category_and_name("tipo", "Notebook")
     assert found is not None
+    assert repo.get_by_id(tag.id) is not None
+    assert repo.get_by_id(99999) is None
+
+    # Propagação de renomeação nos 3 campos
+    eq = Equipment(
+        description="Equipamento teste repo tag",
+        serial_number="SN-TAG-REPO-1",
+        equipment_type="Notebook",
+        location="TI",
+        status="Em uso",
+    )
+    eq_repo.create(eq)
+    db_session.commit()
+
+    repo.propagate_tag_rename("tipo", "Notebook", "Laptop")
+    repo.propagate_tag_rename("localizacao", "TI", "Suporte")
+    repo.propagate_tag_rename("situacao", "Em uso", "Operando")
+    repo.propagate_tag_rename("outra_categoria", "A", "B")  # categoria sem efeito
+    db_session.commit()
+    db_session.refresh(eq)
+
+    assert eq.equipment_type == "Laptop"
+    assert eq.location == "Suporte"
+    assert eq.status == "Operando"
+
+    # Exclusão
+    repo.delete(tag)
+    db_session.commit()
+    assert repo.get_by_id(tag.id) is None
+
 
 
 def test_equipment_movement_and_maintenance_repositories(db_session: Session):
@@ -124,3 +162,56 @@ def test_equipment_movement_and_maintenance_repositories(db_session: Session):
     assert movs[0].destination_location == "Data Center"
     assert len(maints) == 1
     assert maints[0].description == "Limpeza física"
+
+
+def test_equipment_repository_get_distinct_values_by_prefix(db_session: Session):
+    """Testa busca de sugestões distintas por prefixo com ordenação e limite."""
+    repo = EquipmentRepository(db_session)
+
+    # Cria equipamentos com diferentes prefixos e campos nulos
+    equipments_data = [
+        ("Notebook A", "SN_ABC_01", "PAT_100", "PROD_X1"),
+        ("Notebook B", "SN_ABC_02", "PAT_101", "PROD_X2"),
+        ("Notebook C", "SN_XYZ_01", "PAT_200", None),
+        ("Notebook D", "SN_abc_03", "pat_102", "PROD_X1"),  # duplicado em produto, case diferente
+        ("Desktop E", "SN_DEF_01", None, "PROD_Y1"),
+    ]
+
+    for desc, sn, pat, prod in equipments_data:
+        eq = Equipment(
+            description=desc,
+            serial_number=sn,
+            patrimony_number=pat,
+            product_number=prod,
+            equipment_type="Notebook",
+            location="TI",
+        )
+        repo.create(eq)
+    db_session.commit()
+
+    # Busca prefixo 'pat_' (case-insensitive)
+    pats = repo.get_distinct_values_by_prefix("patrimony_number", "pat", limit=10)
+    assert len(pats) == 4
+    assert "PAT_100" in pats
+    assert "PAT_101" in pats
+    assert "PAT_200" in pats
+    assert "pat_102" in pats
+
+
+    # Busca com limite menor
+    pats_limited = repo.get_distinct_values_by_prefix("patrimony_number", "PAT", limit=2)
+    assert len(pats_limited) == 2
+
+    # Busca prefixo serial_number
+    serials = repo.get_distinct_values_by_prefix("serial_number", "sn_abc", limit=10)
+    assert len(serials) == 3
+
+    # Busca prefixo product_number (valores distintos)
+    products = repo.get_distinct_values_by_prefix("product_number", "PROD", limit=10)
+    assert len(products) == 3  # PROD_X1, PROD_X2, PROD_Y1
+    assert "PROD_X1" in products
+
+    # Campo inválido retorna lista vazia
+    invalid = repo.get_distinct_values_by_prefix("campo_inexistente", "teste")
+    assert invalid == []
+

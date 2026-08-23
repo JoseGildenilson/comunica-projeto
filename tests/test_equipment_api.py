@@ -154,23 +154,67 @@ async def test_equipment_api_update_404_and_400(client: AsyncClient, tecnico_coo
 
 
 @pytest.mark.anyio
-async def test_equipment_api_tags(client: AsyncClient, tecnico_cookie: str):
-    """Testa listagem e criação de tags dinâmicas."""
+async def test_equipment_api_tags(client: AsyncClient, tecnico_cookie: str, colaborador_cookie: str):
+    """Testa listagem, criação, renomeação, exclusão e RBAC de tags dinâmicas."""
     client.cookies.set("access_token", tecnico_cookie)
 
-    # Criação
+    # 1. Criação OK
     create_resp = await client.post("/api/v1/equipments/tags", json={"category": "tipo", "name": "Servidor"})
     assert create_resp.status_code == 201
+    tag_id = create_resp.json()["id"]
     assert create_resp.json()["name"] == "Servidor"
 
-    # Listagem por categoria
+    # 2. Criação duplicada -> 400
+    dup_resp = await client.post("/api/v1/equipments/tags", json={"category": "tipo", "name": "Servidor"})
+    assert dup_resp.status_code == 400
+
+    # 3. Listagem por categoria e geral
     list_resp = await client.get("/api/v1/equipments/tags?category=tipo")
     assert list_resp.status_code == 200
     assert any(t["name"] == "Servidor" for t in list_resp.json())
 
-    # Listagem geral
     list_all = await client.get("/api/v1/equipments/tags")
     assert list_all.status_code == 200
+
+    # 4. Edição OK
+    edit_resp = await client.put(f"/api/v1/equipments/tags/{tag_id}", json={"name": "Servidor Rack"})
+    assert edit_resp.status_code == 200
+    assert edit_resp.json()["name"] == "Servidor Rack"
+
+    # 4.1 Edição 404
+    edit_404 = await client.put("/api/v1/equipments/tags/99999", json={"name": "Novo Nome"})
+    assert edit_404.status_code == 404
+
+    # 4.2 Edição 400 (nome duplicado)
+    other_tag = await client.post("/api/v1/equipments/tags", json={"category": "tipo", "name": "Switch"})
+    assert other_tag.status_code == 201
+    other_id = other_tag.json()["id"]
+    edit_400 = await client.put(f"/api/v1/equipments/tags/{other_id}", json={"name": "Servidor Rack"})
+    assert edit_400.status_code == 400
+
+    # 5. Exclusão OK
+    del_resp = await client.delete(f"/api/v1/equipments/tags/{other_id}")
+    assert del_resp.status_code == 200
+    assert "sucesso" in del_resp.json()["message"]
+
+    # 5.1 Exclusão 404
+    del_404 = await client.delete("/api/v1/equipments/tags/99999")
+    assert del_404.status_code == 404
+
+    # 6. Validação RBAC: colaborador não tem acesso
+    client.cookies.set("access_token", colaborador_cookie)
+    get_forbidden = await client.get("/api/v1/equipments/tags")
+    assert get_forbidden.status_code == 403
+
+    post_forbidden = await client.post("/api/v1/equipments/tags", json={"category": "tipo", "name": "Hack"})
+    assert post_forbidden.status_code == 403
+
+    put_forbidden = await client.put(f"/api/v1/equipments/tags/{tag_id}", json={"name": "Hack"})
+    assert put_forbidden.status_code == 403
+
+    del_forbidden = await client.delete(f"/api/v1/equipments/tags/{tag_id}")
+    assert del_forbidden.status_code == 403
+
 
 
 @pytest.mark.anyio
@@ -255,3 +299,69 @@ async def test_equipment_api_movements_and_maintenances(client: AsyncClient, tec
     assert eq_data["location"] == "Rádio Produção"
     assert len(eq_data["movements"]) == 1
     assert len(eq_data["maintenances"]) == 0
+
+
+@pytest.mark.anyio
+async def test_equipment_api_suggestions(
+    client: AsyncClient,
+    colaborador_cookie: str,
+    tecnico_cookie: str,
+):
+    """Testa endpoint GET /api/v1/equipments/suggestions."""
+    # Autentica como colaborador (RBAC 403)
+    client.cookies.set("access_token", colaborador_cookie)
+    forbidden_resp = await client.get("/api/v1/equipments/suggestions?field=patrimony_number&prefix=PA")
+    assert forbidden_resp.status_code == 403
+
+    # Autentica como técnico
+    client.cookies.set("access_token", tecnico_cookie)
+
+    # Cria equipamentos para sugestões
+    await client.post("/api/v1/equipments", json={
+        "serial_number": "SN_AUTO_001",
+        "patrimony_number": "PAT_AUTO_10",
+        "product_number": "PROD_AUTO_A",
+        "description": "Item Autocomplete 1",
+        "equipment_type": "Notebook",
+        "location": "TI",
+        "status": "Em uso",
+    })
+    await client.post("/api/v1/equipments", json={
+        "serial_number": "SN_AUTO_002",
+        "patrimony_number": "PAT_AUTO_20",
+        "product_number": "PROD_AUTO_B",
+        "description": "Item Autocomplete 2",
+        "equipment_type": "Notebook",
+        "location": "TI",
+        "status": "Em uso",
+    })
+
+    # 1. Sugestões de patrimônio com sucesso
+    sug_pat = await client.get("/api/v1/equipments/suggestions?field=patrimony_number&prefix=PAT_AUTO")
+    assert sug_pat.status_code == 200
+    pats = sug_pat.json()
+    assert len(pats) == 2
+    assert "PAT_AUTO_10" in pats
+    assert "PAT_AUTO_20" in pats
+
+    # 2. Sugestões com limite
+    sug_pat_lim = await client.get("/api/v1/equipments/suggestions?field=patrimony_number&prefix=PAT_AUTO&limit=1")
+    assert sug_pat_lim.status_code == 200
+    assert len(sug_pat_lim.json()) == 1
+
+    # 3. Sugestões de serial
+    sug_ser = await client.get("/api/v1/equipments/suggestions?field=serial_number&prefix=sn_auto")
+    assert sug_ser.status_code == 200
+    assert len(sug_ser.json()) == 2
+
+    # 4. Campo inválido (400)
+    sug_inv_field = await client.get("/api/v1/equipments/suggestions?field=invalid_col&prefix=abc")
+    assert sug_inv_field.status_code == 400
+    assert "Campo inválido" in sug_inv_field.json()["detail"]
+
+    # 5. Prefixo curto (< 2 caracteres) (400)
+    sug_short_prefix = await client.get("/api/v1/equipments/suggestions?field=patrimony_number&prefix=P")
+    assert sug_short_prefix.status_code == 400
+    assert "pelo menos 2 caracteres" in sug_short_prefix.json()["detail"]
+
+

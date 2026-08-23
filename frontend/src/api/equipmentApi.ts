@@ -57,6 +57,16 @@ export const equipmentApi = {
     return response.data;
   },
 
+  updateTag: async (id: number, name: string): Promise<EquipmentTag> => {
+    const response = await equipmentHttpClient.put<EquipmentTag>(`/tags/${id}`, { name });
+    return response.data;
+  },
+
+  deleteTag: async (id: number): Promise<{ message: string }> => {
+    const response = await equipmentHttpClient.delete<{ message: string }>(`/tags/${id}`);
+    return response.data;
+  },
+
   recordMovement: async (
     equipmentId: number,
     payload: { origin_location: string; destination_location: string; movement_date: string; notes?: string }
@@ -91,4 +101,12 @@ export const equipmentApi = {
     );
     return response.data;
   },
+
+  getSuggestions: async (field: string, prefix: string, limit: number = 10): Promise<string[]> => {
+    const response = await equipmentHttpClient.get<string[]>('/suggestions', {
+      params: { field, prefix, limit },
+    });
+    return response.data;
+  },
 };
+

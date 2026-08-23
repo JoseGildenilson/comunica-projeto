@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, ArrowRightLeft, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, ArrowRightLeft, AlertCircle, Plus, Check } from 'lucide-react';
 import { equipmentApi } from '../api/equipmentApi';
 import { EquipmentTag } from '../types/equipment';
 
@@ -20,11 +20,37 @@ export const MovementModal: React.FC<MovementModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const [localLocations, setLocalLocations] = useState<EquipmentTag[]>(locations);
   const [destinationLocation, setDestinationLocation] = useState(locations[0]?.name || 'TI');
+  const [newLocationInput, setNewLocationInput] = useState<string | null>(null);
+  const [creatingLocation, setCreatingLocation] = useState(false);
   const [movementDate, setMovementDate] = useState(new Date().toISOString().substring(0, 10));
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLocalLocations(locations);
+    if (locations.length > 0 && !destinationLocation) {
+      setDestinationLocation(locations[0].name);
+    }
+  }, [locations]);
+
+  const handleCreateLocation = async () => {
+    if (!newLocationInput || !newLocationInput.trim()) return;
+    setError(null);
+    setCreatingLocation(true);
+    try {
+      const created = await equipmentApi.createTag('localizacao', newLocationInput.trim());
+      setLocalLocations((prev) => [...prev, created]);
+      setDestinationLocation(created.name);
+      setNewLocationInput(null);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Erro ao criar nova localização.');
+    } finally {
+      setCreatingLocation(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -84,15 +110,64 @@ export const MovementModal: React.FC<MovementModalProps> = ({
 
           <div>
             <label className="block text-[11px] font-medium text-zinc-300 mb-1">Destino *</label>
-            <select
-              value={destinationLocation}
-              onChange={(e) => setDestinationLocation(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-100 focus:border-zinc-500 outline-none"
-            >
-              {locations.map((loc) => (
-                <option key={loc.id} value={loc.name}>{loc.name}</option>
-              ))}
-            </select>
+            {newLocationInput !== null ? (
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  value={newLocationInput}
+                  onChange={(e) => setNewLocationInput(e.target.value)}
+                  placeholder="Nova localização"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleCreateLocation();
+                    }
+                    if (e.key === 'Escape') setNewLocationInput(null);
+                  }}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1 text-xs text-zinc-100 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateLocation}
+                  disabled={creatingLocation || !newLocationInput.trim()}
+                  data-testid="confirm-create-location-btn"
+                  className="px-2.5 bg-zinc-100 hover:bg-white text-zinc-950 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                  title="Salvar Localização"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewLocationInput(null)}
+                  className="px-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs cursor-pointer flex items-center justify-center"
+                  title="Cancelar"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <select
+                  value={destinationLocation}
+                  onChange={(e) => setDestinationLocation(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-100 focus:border-zinc-500 outline-none"
+                >
+                  {localLocations.map((loc) => (
+                    <option key={loc.id} value={loc.name}>{loc.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setNewLocationInput('')}
+                  data-testid="inline-create-location-btn"
+                  className="group inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg transition-all cursor-pointer shadow-sm"
+                >
+                  <Plus className="w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-100 transition-colors" />
+                  <span>Criar local</span>
+                </button>
+              </div>
+            )}
           </div>
 
           <div>

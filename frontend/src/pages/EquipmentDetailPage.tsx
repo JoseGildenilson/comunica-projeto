@@ -16,6 +16,7 @@ import {
   X,
   AlertCircle,
   Plus,
+  Check,
   History,
   Tag as TagIcon,
   FileText,
@@ -56,6 +57,10 @@ export const EquipmentDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Inline tag creation in detail edit mode
+  const [newInlineTag, setNewInlineTag] = useState<{ category: string; value: string } | null>(null);
+  const [creatingInlineTag, setCreatingInlineTag] = useState(false);
 
   // Toggle mask for Windows Key
   const [showWindowsKey, setShowWindowsKey] = useState(false);
@@ -133,11 +138,34 @@ export const EquipmentDetailPage: React.FC = () => {
     });
   };
 
+  const handleCreateInlineTag = async (category: string) => {
+    if (!newInlineTag || !newInlineTag.value.trim()) return;
+    setError(null);
+    setCreatingInlineTag(true);
+    try {
+      const created = await equipmentApi.createTag(category, newInlineTag.value.trim());
+      await fetchTags();
+      if (category === 'tipo') {
+        setEditForm((prev) => ({ ...prev, equipment_type: created.name }));
+      } else if (category === 'localizacao') {
+        setEditForm((prev) => ({ ...prev, location: created.name }));
+      } else if (category === 'situacao') {
+        setEditForm((prev) => ({ ...prev, status: created.name }));
+      }
+      setNewInlineTag(null);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Erro ao criar nova tag.');
+    } finally {
+      setCreatingInlineTag(false);
+    }
+  };
+
   const handleStartEdit = () => {
     if (equipment) {
       initEditForm(equipment);
       setIsEditing(true);
       setError(null);
+      setNewInlineTag(null);
     }
   };
 
@@ -147,6 +175,7 @@ export const EquipmentDetailPage: React.FC = () => {
     }
     setIsEditing(false);
     setError(null);
+    setNewInlineTag(null);
   };
 
   const handleSaveEdit = async () => {
@@ -468,15 +497,63 @@ export const EquipmentDetailPage: React.FC = () => {
                   Tipo
                 </span>
                 {isEditing ? (
-                  <select
-                    value={editForm.equipment_type}
-                    onChange={(e) => setEditForm({ ...editForm, equipment_type: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#333333] rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-[#9E9E9E]"
-                  >
-                    {types.map((t) => (
-                      <option key={t.id} value={t.name}>{t.name}</option>
-                    ))}
-                  </select>
+                  newInlineTag?.category === 'tipo' ? (
+                    <div className="flex gap-1.5 mt-1">
+                      <input
+                        type="text"
+                        value={newInlineTag.value}
+                        onChange={(e) => setNewInlineTag({ category: 'tipo', value: e.target.value })}
+                        placeholder="Novo tipo..."
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleCreateInlineTag('tipo');
+                          }
+                          if (e.key === 'Escape') setNewInlineTag(null);
+                        }}
+                        className="w-full bg-[#121212] border border-[#333333] rounded-md px-2.5 py-1 text-xs text-white outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleCreateInlineTag('tipo')}
+                        disabled={creatingInlineTag || !newInlineTag.value.trim()}
+                        className="px-2 bg-zinc-100 text-zinc-950 rounded-md text-xs font-semibold cursor-pointer"
+                        title="Salvar"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewInlineTag(null)}
+                        className="px-2 bg-zinc-800 text-zinc-300 rounded-md text-xs cursor-pointer"
+                        title="Cancelar"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <select
+                        value={editForm.equipment_type}
+                        onChange={(e) => setEditForm({ ...editForm, equipment_type: e.target.value })}
+                        className="w-full bg-[#121212] border border-[#333333] rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-[#9E9E9E]"
+                      >
+                        {types.map((t) => (
+                          <option key={t.id} value={t.name}>{t.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setNewInlineTag({ category: 'tipo', value: '' })}
+                        data-testid="inline-create-tipo-btn"
+                        className="group inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white bg-[#1a1a1a] hover:bg-[#262626] border border-[#333333] hover:border-[#444444] rounded-md transition-all cursor-pointer shadow-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-100 transition-colors" />
+                        <span>Criar tipo</span>
+                      </button>
+                    </div>
+                  )
                 ) : (
                   <span className="text-xs font-mono text-[#E0E0E0] px-2 py-0.5 bg-[#121212] border border-[#333333] rounded inline-block">
                     {equipment.equipment_type}
@@ -529,15 +606,63 @@ export const EquipmentDetailPage: React.FC = () => {
                   <span className="text-[10px] font-bold uppercase tracking-wider">Localização Atual</span>
                 </div>
                 {isEditing ? (
-                  <select
-                    value={editForm.location}
-                    onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                    className="w-full bg-[#1E1E1E] border border-[#333333] rounded-md px-2.5 py-1.5 text-xs text-white outline-none mt-1 focus:border-[#9E9E9E]"
-                  >
-                    {locations.map((l) => (
-                      <option key={l.id} value={l.name}>{l.name}</option>
-                    ))}
-                  </select>
+                  newInlineTag?.category === 'localizacao' ? (
+                    <div className="flex gap-1.5 mt-1">
+                      <input
+                        type="text"
+                        value={newInlineTag.value}
+                        onChange={(e) => setNewInlineTag({ category: 'localizacao', value: e.target.value })}
+                        placeholder="Nova localização..."
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleCreateInlineTag('localizacao');
+                          }
+                          if (e.key === 'Escape') setNewInlineTag(null);
+                        }}
+                        className="w-full bg-[#1E1E1E] border border-[#333333] rounded-md px-2.5 py-1 text-xs text-white outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleCreateInlineTag('localizacao')}
+                        disabled={creatingInlineTag || !newInlineTag.value.trim()}
+                        className="px-2 bg-zinc-100 text-zinc-950 rounded-md text-xs font-semibold cursor-pointer"
+                        title="Salvar"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewInlineTag(null)}
+                        className="px-2 bg-zinc-800 text-zinc-300 rounded-md text-xs cursor-pointer"
+                        title="Cancelar"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <select
+                        value={editForm.location}
+                        onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                        className="w-full bg-[#1E1E1E] border border-[#333333] rounded-md px-2.5 py-1.5 text-xs text-white outline-none mt-1 focus:border-[#9E9E9E]"
+                      >
+                        {locations.map((l) => (
+                          <option key={l.id} value={l.name}>{l.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setNewInlineTag({ category: 'localizacao', value: '' })}
+                        data-testid="inline-create-localizacao-btn"
+                        className="group inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white bg-[#1a1a1a] hover:bg-[#262626] border border-[#333333] hover:border-[#444444] rounded-md transition-all cursor-pointer shadow-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-100 transition-colors" />
+                        <span>Criar local</span>
+                      </button>
+                    </div>
+                  )
                 ) : (
                   <span className="text-sm font-semibold text-white mt-0.5">{equipment.location}</span>
                 )}
@@ -550,15 +675,63 @@ export const EquipmentDetailPage: React.FC = () => {
                   <span className="text-[10px] font-bold uppercase tracking-wider">Situação do Patrimônio</span>
                 </div>
                 {isEditing ? (
-                  <select
-                    value={editForm.status}
-                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                    className="w-full bg-[#1E1E1E] border border-[#333333] rounded-md px-2.5 py-1.5 text-xs text-white outline-none mt-1 focus:border-[#9E9E9E]"
-                  >
-                    {statuses.map((s) => (
-                      <option key={s.id} value={s.name}>{s.name}</option>
-                    ))}
-                  </select>
+                  newInlineTag?.category === 'situacao' ? (
+                    <div className="flex gap-1.5 mt-1">
+                      <input
+                        type="text"
+                        value={newInlineTag.value}
+                        onChange={(e) => setNewInlineTag({ category: 'situacao', value: e.target.value })}
+                        placeholder="Nova situação..."
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleCreateInlineTag('situacao');
+                          }
+                          if (e.key === 'Escape') setNewInlineTag(null);
+                        }}
+                        className="w-full bg-[#1E1E1E] border border-[#333333] rounded-md px-2.5 py-1 text-xs text-white outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleCreateInlineTag('situacao')}
+                        disabled={creatingInlineTag || !newInlineTag.value.trim()}
+                        className="px-2 bg-zinc-100 text-zinc-950 rounded-md text-xs font-semibold cursor-pointer"
+                        title="Salvar"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewInlineTag(null)}
+                        className="px-2 bg-zinc-800 text-zinc-300 rounded-md text-xs cursor-pointer"
+                        title="Cancelar"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <select
+                        value={editForm.status}
+                        onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                        className="w-full bg-[#1E1E1E] border border-[#333333] rounded-md px-2.5 py-1.5 text-xs text-white outline-none mt-1 focus:border-[#9E9E9E]"
+                      >
+                        {statuses.map((s) => (
+                          <option key={s.id} value={s.name}>{s.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setNewInlineTag({ category: 'situacao', value: '' })}
+                        data-testid="inline-create-situacao-btn"
+                        className="group inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white bg-[#1a1a1a] hover:bg-[#262626] border border-[#333333] hover:border-[#444444] rounded-md transition-all cursor-pointer shadow-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-100 transition-colors" />
+                        <span>Criar situação</span>
+                      </button>
+                    </div>
+                  )
                 ) : (
                   <div className="mt-1">
                     {renderStatusPill(equipment.status)}

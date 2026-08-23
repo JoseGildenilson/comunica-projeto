@@ -11,8 +11,10 @@ describe('Módulo de API equipmentApi', () => {
       if (url === '') return Promise.resolve({ data: { items: [], total: 0, page: 1, limit: 25, pages: 1 } }) as any;
       if (url === '/1') return Promise.resolve({ data: { id: 1, serial_number: 'SN123' } }) as any;
       if (url === '/tags') return Promise.resolve({ data: [{ id: 1, category: 'tipo', name: 'Notebook' }] }) as any;
+      if (url === '/suggestions') return Promise.resolve({ data: ['PAT001', 'PAT002'] }) as any;
       return Promise.reject(new Error('Unknown'));
     });
+
 
     vi.spyOn(equipmentHttpClient, 'post').mockImplementation((url) => {
       if (url === '') return Promise.resolve({ data: { id: 1, serial_number: 'SN123' } }) as any;
@@ -24,6 +26,7 @@ describe('Módulo de API equipmentApi', () => {
 
     vi.spyOn(equipmentHttpClient, 'put').mockImplementation((url) => {
       if (url.includes('/maintenances/')) return Promise.resolve({ data: { id: 1, description: 'SSD Alterado' } }) as any;
+      if (url.includes('/tags/')) return Promise.resolve({ data: { id: 1, category: 'tipo', name: 'Notebook Pro' } }) as any;
       return Promise.resolve({ data: { id: 1, description: 'Updated' } }) as any;
     });
 
@@ -53,6 +56,12 @@ describe('Módulo de API equipmentApi', () => {
     const newTag = await equipmentApi.createTag('tipo', 'Desktop');
     expect(newTag.name).toBe('Desktop');
 
+    const updatedTag = await equipmentApi.updateTag(1, 'Notebook Pro');
+    expect(updatedTag.name).toBe('Notebook Pro');
+
+    const delTag = await equipmentApi.deleteTag(1);
+    expect(delTag.message).toContain('sucesso');
+
     const mov = await equipmentApi.recordMovement(1, { origin_location: 'TI', destination_location: 'Rádio', movement_date: '2026-08-13' });
     expect(mov.destination_location).toBe('TI');
 
@@ -64,5 +73,9 @@ describe('Módulo de API equipmentApi', () => {
 
     const delRes = await equipmentApi.deleteMaintenance(1, 1);
     expect(delRes.message).toContain('sucesso');
+
+    const suggestions = await equipmentApi.getSuggestions('patrimony_number', 'PA', 10);
+    expect(suggestions).toEqual(['PAT001', 'PAT002']);
   });
 });
+

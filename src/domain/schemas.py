@@ -56,6 +56,11 @@ class EquipmentTagResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class EquipmentTagUpdate(BaseModel):
+    """Schema para atualização/renomeação de Tag."""
+    name: str = Field(..., min_length=1, description="Novo nome da tag")
+
+
 class EquipmentMovementCreate(BaseModel):
     """Schema para registro de movimentação de localização."""
     origin_location: str = Field(..., min_length=1, description="Localização de origem")

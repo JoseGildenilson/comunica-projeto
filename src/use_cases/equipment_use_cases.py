@@ -9,6 +9,7 @@ from src.domain.schemas import (
     EquipmentResponse,
     EquipmentListResponse,
     EquipmentTagCreate,
+    EquipmentTagUpdate,
     EquipmentTagResponse,
     EquipmentMovementCreate,
     EquipmentMovementResponse,
@@ -297,23 +298,88 @@ class DeleteMaintenanceUseCase:
 
 
 class ManageTagsUseCase:
-    """Caso de uso para listar e criar tags dinâmicas."""
+    """Caso de uso para gerenciamento (CRUD) de tags dinâmicas."""
 
     def __init__(self, db: Session):
         self.db = db
         self.tag_repo = EquipmentTagRepository(db)
 
     def list_tags(self, category: str | None = None) -> list[EquipmentTag]:
+        """Lista tags cadastradas, opcionalmente filtradas por categoria."""
         if category:
             return self.tag_repo.list_by_category(category)
         return self.tag_repo.list_all()
 
     def create_tag(self, data: EquipmentTagCreate) -> EquipmentTag:
-        existing = self.tag_repo.get_by_category_and_name(data.category, data.name)
-        if existing:
-            return existing
+        """Cria uma nova tag com validação de duplicidade (RN-TAG-02)."""
+        clean_name = data.name.strip()
+        if not clean_name:
+            raise ValueError("O nome da tag não pode ser vazio.")
 
-        tag = EquipmentTag(category=data.category, name=data.name)
+        existing = self.tag_repo.get_by_category_and_name(data.category, clean_name)
+        if existing:
+            raise ValueError(f"Tag '{clean_name}' já está cadastrada na categoria '{data.category}'.")
+
+        tag = EquipmentTag(category=data.category, name=clean_name)
         self.tag_repo.create(tag)
         self.db.flush()
         return tag
+
+    def update_tag(self, tag_id: int, new_name: str) -> EquipmentTag:
+        """Renomeia uma tag e propaga a alteração nos equipamentos (RN-TAG-03 & RN-TAG-04)."""
+        clean_name = new_name.strip()
+        if not clean_name:
+            raise ValueError("O nome da tag não pode ser vazio.")
+
+        tag = self.tag_repo.get_by_id(tag_id)
+        if not tag:
+            raise KeyError(f"Tag com ID {tag_id} não foi encontrada.")
+
+        if clean_name != tag.name:
+            duplicate = self.tag_repo.get_by_category_and_name(tag.category, clean_name)
+            if duplicate and duplicate.id != tag_id:
+                raise ValueError(f"Já existe uma tag '{clean_name}' na categoria '{tag.category}'.")
+
+            old_name = tag.name
+            tag.name = clean_name
+            self.tag_repo.propagate_tag_rename(tag.category, old_name, clean_name)
+            self.db.flush()
+
+        return tag
+
+    def delete_tag(self, tag_id: int) -> None:
+        """Exclui uma tag disponível sem alterar o histórico de equipamentos (RN-TAG-05 & RN-TAG-06)."""
+        tag = self.tag_repo.get_by_id(tag_id)
+        if not tag:
+            raise KeyError(f"Tag com ID {tag_id} não foi encontrada.")
+
+        self.tag_repo.delete(tag)
+        self.db.flush()
+
+
+class GetSuggestionsUseCase:
+    """Caso de uso para buscar sugestões de autocomplete por prefixo (RN-AC-01 a RN-AC-03 e RN-AC-08/09)."""
+
+    ALLOWED_FIELDS = {"patrimony_number", "serial_number", "product_number"}
+
+    def __init__(self, db: Session):
+        self.repo = EquipmentRepository(db)
+
+    def execute(self, field: str, prefix: str, limit: int = 10) -> list[str]:
+        if not field or field not in self.ALLOWED_FIELDS:
+            raise ValueError(
+                f"Campo inválido para sugestão: '{field}'. Campos permitidos: {', '.join(sorted(self.ALLOWED_FIELDS))}."
+            )
+
+        clean_prefix = prefix.strip() if prefix else ""
+        if len(clean_prefix) < 2:
+            raise ValueError("O prefixo de busca deve conter pelo menos 2 caracteres.")
+
+        eff_limit = max(1, min(limit, 50))
+        return self.repo.get_distinct_values_by_prefix(
+            field_name=field,
+            prefix=clean_prefix,
+            limit=eff_limit,
+        )
+
+

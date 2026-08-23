@@ -19,7 +19,9 @@ from src.use_cases.equipment_use_cases import (
     UpdateMaintenanceUseCase,
     DeleteMaintenanceUseCase,
     ManageTagsUseCase,
+    GetSuggestionsUseCase,
 )
+
 
 
 def test_create_equipment_use_case_success_and_duplicates(db_session: Session):
@@ -296,17 +298,149 @@ def test_update_and_delete_maintenance_use_cases(db_session: Session):
 
 
 def test_manage_tags_use_case(db_session: Session):
-    """Testa criação e listagem de tags."""
+    """Testa criação, listagem, atualização com propagação e exclusão de tags."""
     tags_uc = ManageTagsUseCase(db_session)
+    create_eq_uc = CreateEquipmentUseCase(db_session)
+
+    # 1. Criação com sucesso
     t1 = tags_uc.create_tag(EquipmentTagCreate(category="tipo", name="Notebook"))
     assert t1.id is not None
+    assert t1.name == "Notebook"
 
-    # Recriar mesma tag retorna a existente
-    t2 = tags_uc.create_tag(EquipmentTagCreate(category="tipo", name="Notebook"))
-    assert t2.id == t1.id
+    loc_tag = tags_uc.create_tag(EquipmentTagCreate(category="localizacao", name="TI"))
+    status_tag = tags_uc.create_tag(EquipmentTagCreate(category="situacao", name="Em uso"))
 
-    tags_list = tags_uc.list_tags(category="tipo")
-    assert len(tags_list) == 1
+    # 2. Duplicidade na mesma categoria lança ValueError
+    with pytest.raises(ValueError, match="já está cadastrada"):
+        tags_uc.create_tag(EquipmentTagCreate(category="tipo", name="Notebook"))
 
-    all_tags = tags_uc.list_tags(category=None)
-    assert len(all_tags) == 1
+    # 3. Nome vazio lança ValueError
+    with pytest.raises(ValueError, match="não pode ser vazio"):
+        tags_uc.create_tag(EquipmentTagCreate(category="tipo", name="   "))
+
+    # 4. Listagem filtrada e geral
+    assert len(tags_uc.list_tags(category="tipo")) == 1
+    assert len(tags_uc.list_tags(category="localizacao")) == 1
+    assert len(tags_uc.list_tags(category=None)) == 3
+
+    # 5. Criação de equipamento para testar propagação de renomeação
+    eq = create_eq_uc.execute(
+        EquipmentCreate(
+            serial_number="SN-TAG-PROP-1",
+            description="Equipamento para teste de propagação",
+            equipment_type="Notebook",
+            location="TI",
+            status="Em uso",
+        )
+    )
+    db_session.commit()
+
+    # 6. Atualização/Renomeação com propagação
+    # 6.1 Renomeia tipo (Notebook -> Laptop)
+    updated_t1 = tags_uc.update_tag(t1.id, "Laptop")
+    assert updated_t1.name == "Laptop"
+    db_session.refresh(eq)
+    assert eq.equipment_type == "Laptop"
+
+    # 6.2 Renomeia localização (TI -> Suporte TI)
+    updated_loc = tags_uc.update_tag(loc_tag.id, "Suporte TI")
+    assert updated_loc.name == "Suporte TI"
+    db_session.refresh(eq)
+    assert eq.location == "Suporte TI"
+
+    # 6.3 Renomeia situação (Em uso -> Ativo Operacional)
+    updated_status = tags_uc.update_tag(status_tag.id, "Ativo Operacional")
+    assert updated_status.name == "Ativo Operacional"
+    db_session.refresh(eq)
+    assert eq.status == "Ativo Operacional"
+
+    # 6.4 Manter o mesmo nome não causa erro
+    same_tag = tags_uc.update_tag(t1.id, "Laptop")
+    assert same_tag.name == "Laptop"
+
+    # 6.5 Renomear com nome vazio lança ValueError
+    with pytest.raises(ValueError, match="não pode ser vazio"):
+        tags_uc.update_tag(t1.id, "  ")
+
+    # 6.6 Renomear para nome já existente em outra tag da mesma categoria lança ValueError
+    t_other = tags_uc.create_tag(EquipmentTagCreate(category="tipo", name="Desktop"))
+    with pytest.raises(ValueError, match="Já existe uma tag"):
+        tags_uc.update_tag(t_other.id, "Laptop")
+
+    # 6.7 Renomear tag inexistente lança KeyError
+    with pytest.raises(KeyError, match="não foi encontrada"):
+        tags_uc.update_tag(99999, "Inexistente")
+
+    # 7. Exclusão de tags
+    tags_uc.delete_tag(t_other.id)
+    assert len(tags_uc.list_tags(category="tipo")) == 1
+
+    # 7.1 Excluir tag inexistente lança KeyError
+    with pytest.raises(KeyError, match="não foi encontrada"):
+        tags_uc.delete_tag(99999)
+
+
+def test_get_suggestions_use_case(db_session: Session):
+    """Testa validações e execução do caso de uso GetSuggestionsUseCase."""
+    create_uc = CreateEquipmentUseCase(db_session)
+    sug_uc = GetSuggestionsUseCase(db_session)
+
+    # Cadastra alguns equipamentos
+    create_uc.execute(
+        EquipmentCreate(
+            serial_number="SN_SUG_01",
+            patrimony_number="PAT_SUG_100",
+            product_number="PROD_SUG_01",
+            description="Item 1",
+            equipment_type="Notebook",
+            location="TI",
+        )
+    )
+    create_uc.execute(
+        EquipmentCreate(
+            serial_number="SN_SUG_02",
+            patrimony_number="PAT_SUG_200",
+            product_number="PROD_SUG_02",
+            description="Item 2",
+            equipment_type="Notebook",
+            location="TI",
+        )
+    )
+    db_session.commit()
+
+    # Busca com sucesso
+    res_pat = sug_uc.execute(field="patrimony_number", prefix="PAT_", limit=10)
+    assert len(res_pat) == 2
+    assert "PAT_SUG_100" in res_pat
+
+    res_ser = sug_uc.execute(field="serial_number", prefix="SN_", limit=10)
+    assert len(res_ser) == 2
+
+    res_prod = sug_uc.execute(field="product_number", prefix="PROD", limit=10)
+    assert len(res_prod) == 2
+
+    # Validação: campo inválido
+    with pytest.raises(ValueError, match="Campo inválido para sugestão"):
+        sug_uc.execute(field="invalid_field", prefix="PAT")
+
+    with pytest.raises(ValueError, match="Campo inválido para sugestão"):
+        sug_uc.execute(field="", prefix="PAT")
+
+    # Validação: prefixo vazio ou menor que 2 caracteres
+    with pytest.raises(ValueError, match="pelo menos 2 caracteres"):
+        sug_uc.execute(field="patrimony_number", prefix="")
+
+    with pytest.raises(ValueError, match="pelo menos 2 caracteres"):
+        sug_uc.execute(field="patrimony_number", prefix="P")
+
+    with pytest.raises(ValueError, match="pelo menos 2 caracteres"):
+        sug_uc.execute(field="patrimony_number", prefix="   ")
+
+    # Limite com valores fora dos limites (min=1, max=50)
+    res_limit_min = sug_uc.execute(field="patrimony_number", prefix="PAT_", limit=0)
+    assert len(res_limit_min) == 1
+
+    res_limit_max = sug_uc.execute(field="patrimony_number", prefix="PAT_", limit=100)
+    assert len(res_limit_max) == 2
+
+

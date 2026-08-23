@@ -15,12 +15,15 @@ import {
   Printer,
   Calendar,
   MapPin,
+  Tag,
 } from 'lucide-react';
 import { equipmentApi } from '../api/equipmentApi';
 import { Equipment, EquipmentFilterParams, EquipmentTag } from '../types/equipment';
 import { SideMenu } from '../components/SideMenu';
 import { NewEquipmentModal } from '../components/NewEquipmentModal';
+import { ManageTagsModal } from '../components/ManageTagsModal';
 import { MultiSelectFilterDropdown } from '../components/MultiSelectFilterDropdown';
+import { AutocompleteFilterInput } from '../components/AutocompleteFilterInput';
 
 export const EquipmentListPage: React.FC = () => {
   const navigate = useNavigate();
@@ -48,13 +51,10 @@ export const EquipmentListPage: React.FC = () => {
   const [sortBy, setSortBy] = useState('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  // Text inputs for adding Patrimony, Serial or Product filter chips
-  const [inputPatrimony, setInputPatrimony] = useState('');
-  const [inputSerial, setInputSerial] = useState('');
-  const [inputProduct, setInputProduct] = useState('');
-
   // Modals
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [isTagsModalOpen, setIsTagsModalOpen] = useState(false);
+
 
   useEffect(() => {
     fetchTags();
@@ -121,14 +121,12 @@ export const EquipmentListPage: React.FC = () => {
     setFilterPatrimonies([]);
     setFilterSerials([]);
     setFilterProducts([]);
-    setInputPatrimony('');
-    setInputSerial('');
-    setInputProduct('');
     setSearch('');
     setSortBy('created_at');
     setSortDir('desc');
     setPage(1);
   };
+
 
   const hasActiveFilters =
     filterTypes.length > 0 ||
@@ -199,16 +197,16 @@ export const EquipmentListPage: React.FC = () => {
   const handleAddTextFilter = (
     value: string,
     currentList: string[],
-    setList: (val: string[]) => void,
-    clearInput: () => void
+    setList: (val: string[]) => void
   ) => {
-    if (!value.trim()) return;
-    if (!currentList.includes(value.trim())) {
-      setList([...currentList, value.trim()]);
+    const clean = value.trim();
+    if (!clean) return;
+    if (!currentList.includes(clean)) {
+      setList([...currentList, clean]);
       setPage(1);
     }
-    clearInput();
   };
+
 
   return (
     <div className="min-h-screen bg-[#121212] text-[#E0E0E0] font-sans antialiased flex flex-col selection:bg-zinc-800 selection:text-white">
@@ -237,15 +235,27 @@ export const EquipmentListPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Action Button */}
-        <button
-          onClick={() => setIsNewModalOpen(true)}
-          data-testid="new-equipment-btn"
-          className="flex items-center gap-2 px-4 py-2 bg-white text-[#121212] font-semibold rounded-md hover:bg-gray-200 transition-colors text-sm cursor-pointer shadow-sm active:scale-[0.99]"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Novo Equipamento</span>
-        </button>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setIsTagsModalOpen(true)}
+            data-testid="manage-tags-btn"
+            className="flex items-center gap-2 px-3 py-2 bg-[#1E1E1E] border border-[#333333] hover:bg-[#333333] text-[#E0E0E0] hover:text-white rounded-md transition-colors text-sm font-medium cursor-pointer shadow-sm"
+            title="Gerenciar Tags"
+          >
+            <Tag className="w-4 h-4" />
+            <span className="hidden sm:inline">Gerenciar Tags</span>
+          </button>
+
+          <button
+            onClick={() => setIsNewModalOpen(true)}
+            data-testid="new-equipment-btn"
+            className="flex items-center gap-2 px-4 py-2 bg-white text-[#121212] font-semibold rounded-md hover:bg-gray-200 transition-colors text-sm cursor-pointer shadow-sm active:scale-[0.99]"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Novo Equipamento</span>
+          </button>
+        </div>
       </header>
 
       {/* Main Content Area */}
@@ -298,69 +308,31 @@ export const EquipmentListPage: React.FC = () => {
               testId="filter-status-dropdown"
             />
 
-            {/* Text Input Filters */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Patrimônio..."
-                value={inputPatrimony}
-                onChange={(e) => setInputPatrimony(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddTextFilter(inputPatrimony, filterPatrimonies, setFilterPatrimonies, () => setInputPatrimony(''));
-                  }
-                }}
-                className="bg-[#121212] border border-[#333333] text-[#E0E0E0] text-sm rounded-md px-3 py-2 focus:ring-1 focus:ring-[#9E9E9E] focus:border-[#9E9E9E] focus:outline-none placeholder-[#9E9E9E]/50 w-32 font-mono"
-              />
-              {filterPatrimonies.length > 0 && (
-                <span className="absolute right-2 top-2.5 px-1.5 py-0.2 rounded bg-[#333333] text-white font-mono font-bold text-[10px]">
-                  {filterPatrimonies.length}
-                </span>
-              )}
-            </div>
+            {/* Autocomplete Input Filters (RN-AC-01 a RN-AC-07) */}
+            <AutocompleteFilterInput
+              field="patrimony_number"
+              placeholder="Patrimônio..."
+              selectedValues={filterPatrimonies}
+              onAddValue={(val) => handleAddTextFilter(val, filterPatrimonies, setFilterPatrimonies)}
+              testId="filter-patrimony-input"
+            />
 
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Série..."
-                value={inputSerial}
-                onChange={(e) => setInputSerial(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddTextFilter(inputSerial, filterSerials, setFilterSerials, () => setInputSerial(''));
-                  }
-                }}
-                className="bg-[#121212] border border-[#333333] text-[#E0E0E0] text-sm rounded-md px-3 py-2 focus:ring-1 focus:ring-[#9E9E9E] focus:border-[#9E9E9E] focus:outline-none placeholder-[#9E9E9E]/50 w-32 font-mono"
-              />
-              {filterSerials.length > 0 && (
-                <span className="absolute right-2 top-2.5 px-1.5 py-0.2 rounded bg-[#333333] text-white font-mono font-bold text-[10px]">
-                  {filterSerials.length}
-                </span>
-              )}
-            </div>
+            <AutocompleteFilterInput
+              field="serial_number"
+              placeholder="Série..."
+              selectedValues={filterSerials}
+              onAddValue={(val) => handleAddTextFilter(val, filterSerials, setFilterSerials)}
+              testId="filter-serial-input"
+            />
 
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Produto..."
-                value={inputProduct}
-                onChange={(e) => setInputProduct(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddTextFilter(inputProduct, filterProducts, setFilterProducts, () => setInputProduct(''));
-                  }
-                }}
-                className="bg-[#121212] border border-[#333333] text-[#E0E0E0] text-sm rounded-md px-3 py-2 focus:ring-1 focus:ring-[#9E9E9E] focus:border-[#9E9E9E] focus:outline-none placeholder-[#9E9E9E]/50 w-32 font-mono"
-              />
-              {filterProducts.length > 0 && (
-                <span className="absolute right-2 top-2.5 px-1.5 py-0.2 rounded bg-[#333333] text-white font-mono font-bold text-[10px]">
-                  {filterProducts.length}
-                </span>
-              )}
-            </div>
+            <AutocompleteFilterInput
+              field="product_number"
+              placeholder="Produto..."
+              selectedValues={filterProducts}
+              onAddValue={(val) => handleAddTextFilter(val, filterProducts, setFilterProducts)}
+              testId="filter-product-input"
+            />
+
 
             {/* Global Search */}
             <div className="relative flex-1 min-w-[200px]">
@@ -551,6 +523,16 @@ export const EquipmentListPage: React.FC = () => {
         onSuccess={() => {
           fetchEquipments();
           fetchTags();
+        }}
+      />
+
+      {/* Modal de Gerenciamento de Tags */}
+      <ManageTagsModal
+        isOpen={isTagsModalOpen}
+        onClose={() => setIsTagsModalOpen(false)}
+        onTagsUpdated={() => {
+          fetchTags();
+          fetchEquipments();
         }}
       />
     </div>

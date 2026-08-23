@@ -226,14 +226,36 @@ export const NewEquipmentModal: React.FC<NewEquipmentModalProps> = ({ isOpen, on
                       value={newTagInput.value}
                       onChange={(e) => setNewTagInput({ category: 'tipo', value: e.target.value })}
                       placeholder="Novo tipo"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleCreateTag('tipo');
+                        }
+                        if (e.key === 'Escape') setNewTagInput(null);
+                      }}
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1 text-xs text-zinc-100 outline-none"
                     />
-                    <button type="button" onClick={() => handleCreateTag('tipo')} className="px-2.5 bg-zinc-100 text-zinc-950 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => handleCreateTag('tipo')}
+                      disabled={!newTagInput.value.trim()}
+                      className="px-2.5 bg-zinc-100 hover:bg-white text-zinc-950 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-50 flex items-center justify-center transition-colors"
+                      title="Salvar Tipo"
+                    >
                       <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewTagInput(null)}
+                      className="px-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs cursor-pointer flex items-center justify-center transition-colors"
+                      title="Cancelar"
+                    >
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <select
                       value={equipmentType}
                       onChange={(e) => setEquipmentType(e.target.value)}
@@ -246,9 +268,11 @@ export const NewEquipmentModal: React.FC<NewEquipmentModalProps> = ({ isOpen, on
                     <button
                       type="button"
                       onClick={() => setNewTagInput({ category: 'tipo', value: '' })}
-                      className="text-[10px] text-zinc-400 hover:text-zinc-200 flex items-center gap-1 cursor-pointer font-mono"
+                      data-testid="inline-create-tipo-btn"
+                      className="group inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg transition-all cursor-pointer shadow-sm"
                     >
-                      <Plus className="w-3 h-3" /> + Criar tipo
+                      <Plus className="w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-100 transition-colors" />
+                      <span>Criar tipo</span>
                     </button>
                   </div>
                 )}
@@ -264,14 +288,36 @@ export const NewEquipmentModal: React.FC<NewEquipmentModalProps> = ({ isOpen, on
                       value={newTagInput.value}
                       onChange={(e) => setNewTagInput({ category: 'localizacao', value: e.target.value })}
                       placeholder="Nova localização"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleCreateTag('localizacao');
+                        }
+                        if (e.key === 'Escape') setNewTagInput(null);
+                      }}
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1 text-xs text-zinc-100 outline-none"
                     />
-                    <button type="button" onClick={() => handleCreateTag('localizacao')} className="px-2.5 bg-zinc-100 text-zinc-950 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => handleCreateTag('localizacao')}
+                      disabled={!newTagInput.value.trim()}
+                      className="px-2.5 bg-zinc-100 hover:bg-white text-zinc-950 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-50 flex items-center justify-center transition-colors"
+                      title="Salvar Localização"
+                    >
                       <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewTagInput(null)}
+                      className="px-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs cursor-pointer flex items-center justify-center transition-colors"
+                      title="Cancelar"
+                    >
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <select
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
@@ -284,9 +330,11 @@ export const NewEquipmentModal: React.FC<NewEquipmentModalProps> = ({ isOpen, on
                     <button
                       type="button"
                       onClick={() => setNewTagInput({ category: 'localizacao', value: '' })}
-                      className="text-[10px] text-zinc-400 hover:text-zinc-200 flex items-center gap-1 cursor-pointer font-mono"
+                      data-testid="inline-create-localizacao-btn"
+                      className="group inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg transition-all cursor-pointer shadow-sm"
                     >
-                      <Plus className="w-3 h-3" /> + Criar local
+                      <Plus className="w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-100 transition-colors" />
+                      <span>Criar local</span>
                     </button>
                   </div>
                 )}
@@ -302,14 +350,36 @@ export const NewEquipmentModal: React.FC<NewEquipmentModalProps> = ({ isOpen, on
                       value={newTagInput.value}
                       onChange={(e) => setNewTagInput({ category: 'situacao', value: e.target.value })}
                       placeholder="Nova situação"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleCreateTag('situacao');
+                        }
+                        if (e.key === 'Escape') setNewTagInput(null);
+                      }}
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1 text-xs text-zinc-100 outline-none"
                     />
-                    <button type="button" onClick={() => handleCreateTag('situacao')} className="px-2.5 bg-zinc-100 text-zinc-950 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => handleCreateTag('situacao')}
+                      disabled={!newTagInput.value.trim()}
+                      className="px-2.5 bg-zinc-100 hover:bg-white text-zinc-950 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-50 flex items-center justify-center transition-colors"
+                      title="Salvar Situação"
+                    >
                       <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewTagInput(null)}
+                      className="px-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs cursor-pointer flex items-center justify-center transition-colors"
+                      title="Cancelar"
+                    >
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <select
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
@@ -322,9 +392,11 @@ export const NewEquipmentModal: React.FC<NewEquipmentModalProps> = ({ isOpen, on
                     <button
                       type="button"
                       onClick={() => setNewTagInput({ category: 'situacao', value: '' })}
-                      className="text-[10px] text-zinc-400 hover:text-zinc-200 flex items-center gap-1 cursor-pointer font-mono"
+                      data-testid="inline-create-situacao-btn"
+                      className="group inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg transition-all cursor-pointer shadow-sm"
                     >
-                      <Plus className="w-3 h-3" /> + Criar situação
+                      <Plus className="w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-100 transition-colors" />
+                      <span>Criar situação</span>
                     </button>
                   </div>
                 )}

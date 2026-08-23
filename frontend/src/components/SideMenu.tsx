@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Menu, X, LayoutDashboard, HardDrive, LogOut } from 'lucide-react';
+import { Menu, X, LayoutDashboard, HardDrive, LogOut, Tag } from 'lucide-react';
+import { ManageTagsModal } from './ManageTagsModal';
 
 export const SideMenu: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isTagsModalOpen, setIsTagsModalOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -122,18 +124,32 @@ export const SideMenu: React.FC = () => {
           </button>
 
           {isTecnico && (
-            <button
-              onClick={() => handleNavigate('/equipamentos')}
-              data-testid="patrimonio-menu-item"
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer text-left ${
-                isEquipamentosActive
-                  ? 'border-l-2 border-white bg-white/5 text-white font-semibold'
-                  : 'text-[#9E9E9E] hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <HardDrive className="w-4 h-4" />
-              <span>Patrimônio</span>
-            </button>
+            <>
+              <button
+                onClick={() => handleNavigate('/equipamentos')}
+                data-testid="patrimonio-menu-item"
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer text-left ${
+                  isEquipamentosActive
+                    ? 'border-l-2 border-white bg-white/5 text-white font-semibold'
+                    : 'text-[#9E9E9E] hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <HardDrive className="w-4 h-4" />
+                <span>Patrimônio</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  closeMenu();
+                  setIsTagsModalOpen(true);
+                }}
+                data-testid="manage-tags-menu-item"
+                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer text-left text-[#9E9E9E] hover:text-white hover:bg-white/5"
+              >
+                <Tag className="w-4 h-4" />
+                <span>Gerenciar Tags</span>
+              </button>
+            </>
           )}
         </div>
 
@@ -163,6 +179,13 @@ export const SideMenu: React.FC = () => {
           </button>
         </div>
       </aside>
+
+      {/* Modal de Gerenciamento de Tags */}
+      <ManageTagsModal
+        isOpen={isTagsModalOpen}
+        onClose={() => setIsTagsModalOpen(false)}
+      />
     </>
   );
 };
+
