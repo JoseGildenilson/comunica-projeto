@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Menu, X, LayoutDashboard, HardDrive, LogOut, Tag } from 'lucide-react';
+import { Menu, X, LayoutDashboard, HardDrive, LogOut, Tag, FileSpreadsheet } from 'lucide-react';
 import { ManageTagsModal } from './ManageTagsModal';
 
 export const SideMenu: React.FC = () => {
@@ -51,6 +51,7 @@ export const SideMenu: React.FC = () => {
   const isTecnico = user?.role === 'tecnico';
   const isDashboardActive = location.pathname === '/dashboard';
   const isEquipamentosActive = location.pathname.startsWith('/equipamentos');
+  const isImportacaoActive = location.pathname === '/importar' || location.pathname === '/import';
 
   const userInitial = user?.email ? user.email.charAt(0).toUpperCase() : 'U';
 
@@ -136,6 +137,19 @@ export const SideMenu: React.FC = () => {
               >
                 <HardDrive className="w-4 h-4" />
                 <span>Patrimônio</span>
+              </button>
+
+              <button
+                onClick={() => handleNavigate('/importar')}
+                data-testid="importar-menu-item"
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer text-left ${
+                  isImportacaoActive
+                    ? 'border-l-2 border-white bg-white/5 text-white font-semibold'
+                    : 'text-[#9E9E9E] hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Importar Planilha</span>
               </button>
 
               <button

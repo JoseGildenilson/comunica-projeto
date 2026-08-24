@@ -5,6 +5,7 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { EquipmentListPage } from './pages/EquipmentListPage';
 import { EquipmentDetailPage } from './pages/EquipmentDetailPage';
+import { ImportPage } from './pages/ImportPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; requiredRole?: string }> = ({ children, requiredRole }) => {
   const { isAuthenticated, user, loading } = useAuthContext();
@@ -56,6 +57,15 @@ export const AppContent: React.FC = () => {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/importar"
+        element={
+          <ProtectedRoute requiredRole="tecnico">
+            <ImportPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/import" element={<Navigate to="/importar" replace />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

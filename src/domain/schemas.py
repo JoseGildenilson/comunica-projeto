@@ -113,7 +113,7 @@ class EquipmentMaintenanceResponse(BaseModel):
 
 class EquipmentCreate(BaseModel):
     """Schema para cadastro de equipamento."""
-    serial_number: str = Field(..., min_length=1, description="Nº de Série (Obrigatório e único)")
+    serial_number: str | None = Field(default=None, description="Nº de Série (Opcional, único se preenchido)")
     description: str = Field(..., min_length=1, description="Descrição do equipamento")
     equipment_type: str = Field(..., min_length=1, description="Tipo (Tag)")
     location: str = Field(..., min_length=1, description="Localização (Tag)")
@@ -146,7 +146,7 @@ class EquipmentUpdate(BaseModel):
 class EquipmentResponse(BaseModel):
     """Schema de resposta completo do equipamento."""
     id: int
-    serial_number: str
+    serial_number: str | None = None
     patrimony_number: str | None = None
     hostname: str | None = None
     description: str
@@ -172,3 +172,45 @@ class EquipmentListResponse(BaseModel):
     page: int
     limit: int
     pages: int
+
+
+# --- Schemas de Importação de Planilha ---
+
+class SpreadsheetRowPreview(BaseModel):
+    """Schema representando uma linha na pré-visualização da planilha."""
+    row_number: int
+    equipment_type: str | None = None
+    location: str | None = None
+    status: str | None = None
+    description: str | None = None
+    patrimony_number: str | None = None
+    serial_number: str | None = None
+    brand: str | None = None
+    last_maintenance_at: str | None = None
+    windows_key: str | None = None
+    product_number: str | None = None
+    hist_mov: str | None = None
+    hostname: str | None = None
+    notes: str | None = None
+
+
+class SpreadsheetImportPreviewResponse(BaseModel):
+    """Schema de resposta para pré-visualização da planilha importada."""
+    filename: str
+    total_rows: int
+    sample_rows: list[SpreadsheetRowPreview]
+    detected_sheet: str | None = None
+    headers: list[str]
+
+
+class SpreadsheetImportResultResponse(BaseModel):
+    """Schema de resposta para o resultado final da importação."""
+    success: bool
+    total_rows: int
+    created_count: int
+    updated_count: int
+    tags_created_count: int
+    maintenances_created_count: int
+    errors: list[str] = []
+    message: str
+

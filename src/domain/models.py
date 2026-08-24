@@ -41,7 +41,7 @@ class Equipment(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    serial_number: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    serial_number: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
     patrimony_number: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
     hostname: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
     brand: Mapped[str | None] = mapped_column(String(255), nullable=True)

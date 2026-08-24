@@ -7,9 +7,8 @@ from src.api.routes import router as auth_router
 from src.api.dashboard_routes import router as dashboard_router
 # pyrefly: ignore [missing-import]
 from src.api.equipment_routes import router as equipment_router
-# pyrefly: ignore [missing-import]
+from src.api.import_routes import router as import_router
 from src.core.config import settings
-# pyrefly: ignore [missing-import]
 from src.core.database import Base, engine
 
 
@@ -31,6 +30,7 @@ app = FastAPI(
 app.include_router(auth_router)
 app.include_router(dashboard_router)
 app.include_router(equipment_router)
+app.include_router(import_router)
 
 
 @app.get("/health", tags=["Health"])
