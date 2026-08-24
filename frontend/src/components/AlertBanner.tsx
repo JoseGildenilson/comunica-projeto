@@ -4,6 +4,7 @@ import { AlertCircle, ShieldAlert, X } from 'lucide-react';
 interface AlertBannerProps {
   message: string;
   isRateLimit?: boolean;
+  type?: 'error' | 'warning' | 'info' | string;
   onClose?: () => void;
 }
 
