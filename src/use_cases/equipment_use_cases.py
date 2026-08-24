@@ -22,6 +22,7 @@ from src.infrastructure.repositories import (
     EquipmentMovementRepository,
     EquipmentMaintenanceRepository,
 )
+from src.infrastructure.spreadsheet_exporter import generate_equipments_excel
 
 
 class CreateEquipmentUseCase:
@@ -381,5 +382,42 @@ class GetSuggestionsUseCase:
             prefix=clean_prefix,
             limit=eff_limit,
         )
+
+
+class ExportEquipmentsUseCase:
+    """Caso de uso para exportação de equipamentos em planilha Excel (.xlsx) estilizada (RN-EXP-01 a RN-EXP-11)."""
+
+    def __init__(self, db: Session):
+        self.repo = EquipmentRepository(db)
+
+    def execute(
+        self,
+        equipment_type: list[str] | str | None = None,
+        location: list[str] | str | None = None,
+        status: list[str] | str | None = None,
+        patrimony_number: list[str] | str | None = None,
+        serial_number: list[str] | str | None = None,
+        product_number: list[str] | str | None = None,
+        search: str | None = None,
+        sort_by: str = "created_at",
+        sort_dir: str = "desc",
+    ) -> tuple[bytes, str]:
+        equipments = self.repo.list_all_filtered(
+            equipment_type=equipment_type,
+            location=location,
+            status=status,
+            patrimony_number=patrimony_number,
+            serial_number=serial_number,
+            product_number=product_number,
+            search=search,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+        )
+
+        excel_bytes = generate_equipments_excel(equipments)
+        now_str = datetime.now().strftime("%Y-%m-%d_%H%M")
+        filename = f"PATRIMONIO_{now_str}.xlsx"
+        return excel_bytes, filename
+
 
 

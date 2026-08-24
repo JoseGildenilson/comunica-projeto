@@ -215,3 +215,40 @@ def test_equipment_repository_get_distinct_values_by_prefix(db_session: Session)
     invalid = repo.get_distinct_values_by_prefix("campo_inexistente", "teste")
     assert invalid == []
 
+
+def test_equipment_repository_list_all_filtered(db_session: Session):
+    """Testa busca completa não paginada list_all_filtered."""
+    repo = EquipmentRepository(db_session)
+    eq1 = Equipment(
+        description="Notebook Dell XPS",
+        serial_number="SN_XPS_01",
+        patrimony_number="PAT_XPS_01",
+        equipment_type="Notebook",
+        location="TI",
+        status="Em uso",
+    )
+    eq2 = Equipment(
+        description="Desktop HP ProDesk",
+        serial_number="SN_HP_01",
+        patrimony_number="PAT_HP_01",
+        equipment_type="Desktop",
+        location="RH",
+        status="Disponível",
+    )
+    repo.create(eq1)
+    repo.create(eq2)
+    db_session.commit()
+
+    all_items = repo.list_all_filtered()
+    assert len(all_items) >= 2
+
+    # Filtrado por tipo e localizacao
+    filtered = repo.list_all_filtered(equipment_type=["Notebook"], location=["TI"])
+    assert len(filtered) == 1
+    assert filtered[0].serial_number == "SN_XPS_01"
+
+    # Ordenação asc
+    ordered = repo.list_all_filtered(sort_by="description", sort_dir="asc")
+    assert len(ordered) >= 2
+
+

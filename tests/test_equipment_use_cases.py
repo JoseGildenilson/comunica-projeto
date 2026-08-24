@@ -20,6 +20,7 @@ from src.use_cases.equipment_use_cases import (
     DeleteMaintenanceUseCase,
     ManageTagsUseCase,
     GetSuggestionsUseCase,
+    ExportEquipmentsUseCase,
 )
 
 
@@ -442,5 +443,46 @@ def test_get_suggestions_use_case(db_session: Session):
 
     res_limit_max = sug_uc.execute(field="patrimony_number", prefix="PAT_", limit=100)
     assert len(res_limit_max) == 2
+
+
+def test_export_equipments_use_case(db_session: Session):
+    """Testa o caso de uso de exportação de equipamentos em planilha Excel."""
+    create_uc = CreateEquipmentUseCase(db_session)
+    export_uc = ExportEquipmentsUseCase(db_session)
+
+    create_uc.execute(
+        EquipmentCreate(
+            serial_number="SN_EXP_01",
+            patrimony_number="PAT_EXP_01",
+            description="Notebook Dell XPS",
+            equipment_type="Notebook",
+            location="TI",
+            status="Em uso",
+        )
+    )
+    create_uc.execute(
+        EquipmentCreate(
+            serial_number="SN_EXP_02",
+            patrimony_number="PAT_EXP_02",
+            description="Monitor Samsung 27",
+            equipment_type="Monitor",
+            location="RH",
+            status="Disponível",
+        )
+    )
+    db_session.commit()
+
+    # Exporta todos sem filtro
+    file_bytes, filename = export_uc.execute()
+    assert isinstance(file_bytes, bytes)
+    assert len(file_bytes) > 0
+    assert filename.startswith("PATRIMONIO_")
+    assert filename.endswith(".xlsx")
+
+    # Exporta com filtros
+    filtered_bytes, _ = export_uc.execute(equipment_type=["Notebook"], location=["TI"])
+    assert isinstance(filtered_bytes, bytes)
+    assert len(filtered_bytes) > 0
+
 
 

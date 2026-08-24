@@ -77,5 +77,33 @@ describe('Módulo de API equipmentApi', () => {
     const suggestions = await equipmentApi.getSuggestions('patrimony_number', 'PA', 10);
     expect(suggestions).toEqual(['PAT001', 'PAT002']);
   });
+
+  it('Executa exportação de planilha com sucesso e extrai filename', async () => {
+    const mockBlob = new Blob(['excel-binary'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    vi.spyOn(equipmentHttpClient, 'get').mockImplementation((url) => {
+      if (url === '/export') {
+        return Promise.resolve({
+          data: mockBlob,
+          headers: {
+            'content-disposition': 'attachment; filename="PATRIMONIO_2026-08-23_2230.xlsx"',
+          },
+        }) as any;
+      }
+      return Promise.reject(new Error('Unknown'));
+    });
+
+    const res = await equipmentApi.exportEquipments({ type: ['Notebook'] });
+    expect(res.filename).toBe('PATRIMONIO_2026-08-23_2230.xlsx');
+    expect(res.data).toBe(mockBlob);
+
+    // Teste com fallback de filename se header ausente
+    vi.spyOn(equipmentHttpClient, 'get').mockResolvedValue({
+      data: mockBlob,
+      headers: {},
+    });
+    const resFallback = await equipmentApi.exportEquipments();
+    expect(resFallback.filename).toBe('patrimonio_export.xlsx');
+  });
 });
+
 

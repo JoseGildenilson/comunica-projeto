@@ -5,7 +5,7 @@ O controle de transação é feito no nível do caso de uso ou rota HTTP.
 """
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, update, func, or_, desc, asc
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from src.domain.models import (
     User,
     LoginAttempt,
@@ -117,10 +117,8 @@ class EquipmentRepository:
         stmt = select(Equipment).where(Equipment.hostname == hostname)
         return self.db.execute(stmt).scalar_one_or_none()
 
-    def list_paginated_and_filtered(
+    def _build_filter_query(
         self,
-        page: int = 1,
-        limit: int = 25,
         equipment_type: list[str] | str | None = None,
         location: list[str] | str | None = None,
         status: list[str] | str | None = None,
@@ -128,10 +126,7 @@ class EquipmentRepository:
         serial_number: list[str] | str | None = None,
         product_number: list[str] | str | None = None,
         search: str | None = None,
-        sort_by: str = "created_at",
-        sort_dir: str = "desc",
-    ) -> tuple[list[Equipment], int]:
-        """Retorna equipamentos paginados e filtrados com o total de registros (suporta múltiplos valores por filtro)."""
+    ):
         query = select(Equipment)
 
         def normalize_list(val: list[str] | str | None) -> list[str]:
@@ -179,6 +174,33 @@ class EquipmentRepository:
                 )
             )
 
+        return query
+
+    def list_paginated_and_filtered(
+        self,
+        page: int = 1,
+        limit: int = 25,
+        equipment_type: list[str] | str | None = None,
+        location: list[str] | str | None = None,
+        status: list[str] | str | None = None,
+        patrimony_number: list[str] | str | None = None,
+        serial_number: list[str] | str | None = None,
+        product_number: list[str] | str | None = None,
+        search: str | None = None,
+        sort_by: str = "created_at",
+        sort_dir: str = "desc",
+    ) -> tuple[list[Equipment], int]:
+        """Retorna equipamentos paginados e filtrados com o total de registros (suporta múltiplos valores por filtro)."""
+        query = self._build_filter_query(
+            equipment_type=equipment_type,
+            location=location,
+            status=status,
+            patrimony_number=patrimony_number,
+            serial_number=serial_number,
+            product_number=product_number,
+            search=search,
+        )
+
         # Totalizador antes da paginação
         count_stmt = select(func.count()).select_from(query.subquery())
         total = self.db.execute(count_stmt).scalar() or 0
@@ -196,6 +218,37 @@ class EquipmentRepository:
 
         items = list(self.db.execute(query).scalars().all())
         return items, total
+
+    def list_all_filtered(
+        self,
+        equipment_type: list[str] | str | None = None,
+        location: list[str] | str | None = None,
+        status: list[str] | str | None = None,
+        patrimony_number: list[str] | str | None = None,
+        serial_number: list[str] | str | None = None,
+        product_number: list[str] | str | None = None,
+        search: str | None = None,
+        sort_by: str = "created_at",
+        sort_dir: str = "desc",
+    ) -> list[Equipment]:
+        """Retorna todos os equipamentos filtrados sem paginação com manutenções pré-carregadas."""
+        query = self._build_filter_query(
+            equipment_type=equipment_type,
+            location=location,
+            status=status,
+            patrimony_number=patrimony_number,
+            serial_number=serial_number,
+            product_number=product_number,
+            search=search,
+        ).options(selectinload(Equipment.maintenances))
+
+        sort_column = getattr(Equipment, sort_by, Equipment.created_at)
+        if sort_dir.lower() == "asc":
+            query = query.order_by(asc(sort_column))
+        else:
+            query = query.order_by(desc(sort_column))
+
+        return list(self.db.execute(query).scalars().all())
 
     def create(self, equipment: Equipment) -> Equipment:
         """Adiciona novo equipamento à sessão."""

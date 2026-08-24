@@ -1,6 +1,6 @@
 """Roteador HTTP do FastAPI para Gestão de Equipamentos (Patrimônio)."""
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from src.api.dependencies import require_tecnico_role
 from src.core.database import get_db
@@ -31,6 +31,7 @@ from src.use_cases.equipment_use_cases import (
     DeleteMaintenanceUseCase,
     ManageTagsUseCase,
     GetSuggestionsUseCase,
+    ExportEquipmentsUseCase,
 )
 
 
@@ -171,6 +172,40 @@ def get_suggestions(
         return use_case.execute(field=field, prefix=prefix, limit=limit)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/export")
+def export_equipments(
+    equipment_type: List[str] | None = Query(default=None, alias="type"),
+    location: List[str] | None = Query(default=None),
+    status: List[str] | None = Query(default=None),
+    patrimony_number: List[str] | None = Query(default=None),
+    serial_number: List[str] | None = Query(default=None),
+    product_number: List[str] | None = Query(default=None),
+    search: str | None = Query(default=None, description="Busca global"),
+    sort_by: str = Query(default="created_at", description="Campo para ordenação"),
+    sort_dir: str = Query(default="desc", description="Direção da ordenação: asc/desc"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_tecnico_role),
+):
+    """Exporta equipamentos cadastrados em planilha Excel .xlsx (Role: Técnico)."""
+    use_case = ExportEquipmentsUseCase(db)
+    file_bytes, filename = use_case.execute(
+        equipment_type=equipment_type,
+        location=location,
+        status=status,
+        patrimony_number=patrimony_number,
+        serial_number=serial_number,
+        product_number=product_number,
+        search=search,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+    )
+    return Response(
+        content=file_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{id}", response_model=EquipmentResponse)

@@ -30,6 +30,7 @@ vi.mock('../api/equipmentApi', () => ({
     updateMaintenance: vi.fn(),
     deleteMaintenance: vi.fn(),
     getSuggestions: vi.fn(),
+    exportEquipments: vi.fn(),
   },
 }));
 
@@ -204,4 +205,57 @@ describe('Páginas e Componentes de Equipamentos (Frontend)', () => {
       expect(screen.getByText('Listagem de Equipamentos')).toBeInTheDocument();
     });
   });
+
+  it('Executa o download da planilha ao clicar em Exportar Planilha', async () => {
+    (authApi.getMe as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 1,
+      email: 'tecnico@empresa.com',
+      role: 'tecnico',
+      is_active: true,
+    });
+    (equipmentApi.getTags as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (equipmentApi.getEquipments as ReturnType<typeof vi.fn>).mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      limit: 25,
+      pages: 1,
+    });
+
+    const mockBlob = new Blob(['excel-data']);
+    (equipmentApi.exportEquipments as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: mockBlob,
+      filename: 'PATRIMONIO_2026-08-23_2230.xlsx',
+    });
+
+    // Mock URL.createObjectURL e revokeObjectURL
+    const createObjectURLMock = vi.fn().mockReturnValue('blob:http://localhost/mock-blob-url');
+    const revokeObjectURLMock = vi.fn();
+    window.URL.createObjectURL = createObjectURLMock;
+    window.URL.revokeObjectURL = revokeObjectURLMock;
+
+    render(
+      <AuthProvider>
+        <MemoryRouter initialEntries={['/equipamentos']}>
+          <Routes>
+            <Route path="/equipamentos" element={<EquipmentListPage />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-spreadsheet-btn')).toBeInTheDocument();
+    });
+
+    const exportBtn = screen.getByTestId('export-spreadsheet-btn');
+    fireEvent.click(exportBtn);
+
+    await waitFor(() => {
+      expect(equipmentApi.exportEquipments).toHaveBeenCalledTimes(1);
+      expect(createObjectURLMock).toHaveBeenCalledWith(expect.any(Blob));
+      expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:http://localhost/mock-blob-url');
+    });
+  });
 });
+

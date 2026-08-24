@@ -365,3 +365,62 @@ async def test_equipment_api_suggestions(
     assert "pelo menos 2 caracteres" in sug_short_prefix.json()["detail"]
 
 
+@pytest.mark.anyio
+async def test_equipment_api_export_all_and_filtered(client: AsyncClient, tecnico_cookie: str):
+    """Testa exportação de equipamentos via GET /api/v1/equipments/export (Cenários 1, 2 e 3)."""
+    client.cookies.set("access_token", tecnico_cookie)
+
+    # Cria equipamentos para teste
+    c1 = await client.post("/api/v1/equipments", json={
+        "serial_number": "SN_EXPORT_001",
+        "patrimony_number": "PAT_EXPORT_001",
+        "product_number": "PROD_EXP_1",
+        "description": "Notebook Lenovo L14",
+        "equipment_type": "Notebook",
+        "location": "TI",
+        "status": "Em uso",
+        "brand": "Lenovo",
+    })
+    eq1_id = c1.json()["id"]
+
+    await client.post("/api/v1/equipments", json={
+        "serial_number": "SN_EXPORT_002",
+        "patrimony_number": "PAT_EXPORT_002",
+        "product_number": "PROD_EXP_2",
+        "description": "Desktop Dell 7090",
+        "equipment_type": "Desktop",
+        "location": "Financeiro",
+        "status": "Disponível",
+        "brand": "Dell",
+    })
+
+    # Adiciona manutenção em eq1
+    await client.post(f"/api/v1/equipments/{eq1_id}/maintenances", json={
+        "maintenance_date": "2026-08-20T10:00:00Z",
+        "description": "Substituição de cooler",
+        "notes": "Original",
+    })
+
+    # 1. Exportação sem filtros
+    resp_all = await client.get("/api/v1/equipments/export")
+    assert resp_all.status_code == 200
+    assert resp_all.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    assert "attachment; filename=" in resp_all.headers["content-disposition"]
+    assert resp_all.headers["content-disposition"].endswith(".xlsx\"")
+    assert len(resp_all.content) > 0
+
+    # 2. Exportação com filtros aplicados
+    resp_filtered = await client.get("/api/v1/equipments/export?type=Notebook&location=TI")
+    assert resp_filtered.status_code == 200
+    assert len(resp_filtered.content) > 0
+
+
+@pytest.mark.anyio
+async def test_equipment_api_export_rbac_forbidden(client: AsyncClient, colaborador_cookie: str):
+    """Testa que colaborador recebe HTTP 403 Forbidden ao tentar exportar planilha (Cenário 4)."""
+    client.cookies.set("access_token", colaborador_cookie)
+    response = await client.get("/api/v1/equipments/export")
+    assert response.status_code == 403
+
+
+

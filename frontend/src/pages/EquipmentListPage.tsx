@@ -16,6 +16,8 @@ import {
   Calendar,
   MapPin,
   Tag,
+  FileSpreadsheet,
+  Loader2,
 } from 'lucide-react';
 import { equipmentApi } from '../api/equipmentApi';
 import { Equipment, EquipmentFilterParams, EquipmentTag } from '../types/equipment';
@@ -51,9 +53,10 @@ export const EquipmentListPage: React.FC = () => {
   const [sortBy, setSortBy] = useState('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  // Modals
+  // Modals & Actions
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [isTagsModalOpen, setIsTagsModalOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
 
   useEffect(() => {
@@ -207,6 +210,37 @@ export const EquipmentListPage: React.FC = () => {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+      const params: Omit<EquipmentFilterParams, 'page' | 'limit'> = {
+        type: filterTypes.length > 0 ? filterTypes : undefined,
+        location: filterLocations.length > 0 ? filterLocations : undefined,
+        status: filterStatuses.length > 0 ? filterStatuses : undefined,
+        patrimony_number: filterPatrimonies.length > 0 ? filterPatrimonies : undefined,
+        serial_number: filterSerials.length > 0 ? filterSerials : undefined,
+        product_number: filterProducts.length > 0 ? filterProducts : undefined,
+        search: search.trim() || undefined,
+        sort_by: sortBy,
+        sort_dir: sortDir,
+      };
+
+      const { data, filename } = await equipmentApi.exportEquipments(params);
+      const blobUrl = window.URL.createObjectURL(new Blob([data]));
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Erro ao exportar planilha:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-[#121212] text-[#E0E0E0] font-sans antialiased flex flex-col selection:bg-zinc-800 selection:text-white">
@@ -237,6 +271,21 @@ export const EquipmentListPage: React.FC = () => {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2.5">
+          <button
+            onClick={handleExport}
+            disabled={isExporting}
+            data-testid="export-spreadsheet-btn"
+            className="flex items-center gap-2 px-3 py-2 bg-[#1E1E1E] border border-[#333333] hover:bg-[#333333] text-[#E0E0E0] hover:text-white rounded-md transition-colors text-sm font-medium cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Exportar Planilha"
+          >
+            {isExporting ? (
+              <Loader2 className="w-4 h-4 animate-spin text-[#9E9E9E]" />
+            ) : (
+              <FileSpreadsheet className="w-4 h-4" />
+            )}
+            <span className="hidden sm:inline">Exportar Planilha</span>
+          </button>
+
           <button
             onClick={() => setIsTagsModalOpen(true)}
             data-testid="manage-tags-btn"

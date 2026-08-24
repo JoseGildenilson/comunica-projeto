@@ -108,5 +108,27 @@ export const equipmentApi = {
     });
     return response.data;
   },
+
+  exportEquipments: async (params?: Omit<EquipmentFilterParams, 'page' | 'limit'>): Promise<{ data: Blob; filename: string }> => {
+    const response = await equipmentHttpClient.get('/export', {
+      params,
+      responseType: 'blob',
+      paramsSerializer: {
+        indexes: null,
+      },
+    });
+
+    let filename = 'patrimonio_export.xlsx';
+    const disposition = response.headers['content-disposition'];
+    if (disposition && disposition.includes('filename=')) {
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      if (match && match[1]) {
+        filename = match[1];
+      }
+    }
+
+    return { data: response.data, filename };
+  },
 };
+
 
