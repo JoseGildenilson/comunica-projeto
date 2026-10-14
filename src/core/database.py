@@ -1,4 +1,5 @@
 """Configuração da engine do SQLAlchemy 2.0 e gerenciamento de sessões."""
+
 from typing import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker, Session
@@ -26,6 +27,7 @@ SessionLocal = sessionmaker(
 
 class Base(DeclarativeBase):
     """Classe base declarativa para os modelos ORM SQLAlchemy."""
+
     pass
 
 

@@ -1,4 +1,5 @@
 """Casos de uso de negócio para Gestão de Patrimônio e Equipamentos."""
+
 import math
 from datetime import datetime, timezone, timedelta
 from typing import Type
@@ -50,6 +51,7 @@ from src.infrastructure.spreadsheet_exporter import generate_equipments_excel
 
 class ConflictError(Exception):
     """Exceção para conflitos de identificadores únicos ativos (HTTP 409 Conflict)."""
+
     pass
 
 
@@ -75,7 +77,9 @@ class ManageCatalogsUseCase:
         clean_name = data.name.strip()
         existing = self.repo.get_by_name_lower(model_class, clean_name)
         if existing:
-            raise ValueError(f"Item '{clean_name}' já está cadastrado no catálogo (unicidade permanente).")
+            raise ValueError(
+                f"Item '{clean_name}' já está cadastrado no catálogo (unicidade permanente)."
+            )
         item = model_class(name=clean_name)
         self.repo.create(item)
         self.db.flush()
@@ -119,7 +123,9 @@ class CreateEquipmentUseCase:
         # 1. Valida existência e status ativo dos catálogos
         eq_type = self.cat_repo.get_by_id(EquipmentType, data.equipment_type_id)
         if not eq_type or eq_type.deleted_at is not None:
-            raise ValueError(f"Tipo de equipamento ID {data.equipment_type_id} inválido ou inativo.")
+            raise ValueError(
+                f"Tipo de equipamento ID {data.equipment_type_id} inválido ou inativo."
+            )
 
         sector = self.cat_repo.get_by_id(Sector, data.sector_id)
         if not sector or sector.deleted_at is not None:
@@ -131,23 +137,37 @@ class CreateEquipmentUseCase:
 
         # 2. Validações de unicidade permanente
         if self.eq_repo.get_by_patrimony_number(data.patrimony_number):
-            raise ValueError(f"Número de patrimônio '{data.patrimony_number}' já está cadastrado no sistema.")
+            raise ValueError(
+                f"Número de patrimônio '{data.patrimony_number}' já está cadastrado no sistema."
+            )
 
         if data.serial_number and self.eq_repo.get_by_serial_number(data.serial_number):
-            raise ValueError(f"Número de série '{data.serial_number}' já está cadastrado no sistema.")
+            raise ValueError(
+                f"Número de série '{data.serial_number}' já está cadastrado no sistema."
+            )
 
         # 3. Validações de unicidade ativa
         if data.hostname and self.eq_repo.get_active_by_hostname(data.hostname):
-            raise ValueError(f"Hostname '{data.hostname}' já está em uso por outro equipamento ativo.")
+            raise ValueError(
+                f"Hostname '{data.hostname}' já está em uso por outro equipamento ativo."
+            )
 
         if data.ip_address and self.eq_repo.get_active_by_ip(data.ip_address):
-            raise ValueError(f"Endereço IP '{data.ip_address}' já está em uso por outro equipamento ativo.")
+            raise ValueError(
+                f"Endereço IP '{data.ip_address}' já está em uso por outro equipamento ativo."
+            )
 
         if data.mac_address and self.eq_repo.get_active_by_mac(data.mac_address):
-            raise ValueError(f"Endereço MAC '{data.mac_address}' já está em uso por outro equipamento ativo.")
+            raise ValueError(
+                f"Endereço MAC '{data.mac_address}' já está em uso por outro equipamento ativo."
+            )
 
-        if data.printer_identifier and self.eq_repo.get_active_by_printer_identifier(data.printer_identifier):
-            raise ValueError(f"Identificador de impressora '{data.printer_identifier}' já está em uso por outro equipamento ativo.")
+        if data.printer_identifier and self.eq_repo.get_active_by_printer_identifier(
+            data.printer_identifier
+        ):
+            raise ValueError(
+                f"Identificador de impressora '{data.printer_identifier}' já está em uso por outro equipamento ativo."
+            )
 
         # 4. Criptografa chave do Windows se informada
         encrypted_windows_key = encrypt_windows_product_key(data.windows_product_key)
@@ -260,9 +280,13 @@ class GetEquipmentDetailUseCase:
                 id=m.id,
                 equipment_id=m.equipment_id,
                 origin_sector_id=m.origin_sector_id,
-                origin_sector=SectorResponse.model_validate(m.origin_sector) if m.origin_sector else None,
+                origin_sector=SectorResponse.model_validate(m.origin_sector)
+                if m.origin_sector
+                else None,
                 destination_sector_id=m.destination_sector_id,
-                destination_sector=SectorResponse.model_validate(m.destination_sector) if m.destination_sector else None,
+                destination_sector=SectorResponse.model_validate(m.destination_sector)
+                if m.destination_sector
+                else None,
                 movement_date=m.movement_date,
                 performed_by_user_id=m.performed_by_user_id,
                 notes=m.notes,
@@ -279,7 +303,9 @@ class GetEquipmentDetailUseCase:
                 started_at=m.started_at,
                 completed_at=m.completed_at,
                 maintenance_type_id=m.maintenance_type_id,
-                maintenance_type=MaintenanceTypeResponse.model_validate(m.maintenance_type) if m.maintenance_type else None,
+                maintenance_type=MaintenanceTypeResponse.model_validate(m.maintenance_type)
+                if m.maintenance_type
+                else None,
                 performed_by_user_id=m.performed_by_user_id,
                 description=m.description,
                 notes=m.notes,
@@ -330,10 +356,15 @@ class UpdateEquipmentUseCase:
             raise KeyError(f"Equipamento com ID {equipment_id} não foi encontrado.")
 
         # Validações de catálogos se alterados
-        if data.equipment_type_id is not None and data.equipment_type_id != equipment.equipment_type_id:
+        if (
+            data.equipment_type_id is not None
+            and data.equipment_type_id != equipment.equipment_type_id
+        ):
             c = self.cat_repo.get_by_id(EquipmentType, data.equipment_type_id)
             if not c or c.deleted_at is not None:
-                raise ValueError(f"Tipo de equipamento ID {data.equipment_type_id} inválido ou inativo.")
+                raise ValueError(
+                    f"Tipo de equipamento ID {data.equipment_type_id} inválido ou inativo."
+                )
             equipment.equipment_type_id = data.equipment_type_id
 
         if data.sector_id is not None and data.sector_id != equipment.sector_id:
@@ -349,9 +380,14 @@ class UpdateEquipmentUseCase:
             equipment.status_id = data.status_id
 
         # Validações de unicidade permanente
-        if data.patrimony_number is not None and data.patrimony_number.strip().lower() != equipment.patrimony_number.lower():
+        if (
+            data.patrimony_number is not None
+            and data.patrimony_number.strip().lower() != equipment.patrimony_number.lower()
+        ):
             if self.eq_repo.get_by_patrimony_number(data.patrimony_number, exclude_id=equipment_id):
-                raise ValueError(f"Número de patrimônio '{data.patrimony_number}' já está cadastrado no sistema.")
+                raise ValueError(
+                    f"Número de patrimônio '{data.patrimony_number}' já está cadastrado no sistema."
+                )
             equipment.patrimony_number = data.patrimony_number.strip()
 
         if data.serial_number is not None:
@@ -359,8 +395,12 @@ class UpdateEquipmentUseCase:
             old_serial = equipment.serial_number.lower() if equipment.serial_number else None
             new_serial = clean_serial.lower() if clean_serial else None
             if new_serial != old_serial:
-                if clean_serial and self.eq_repo.get_by_serial_number(clean_serial, exclude_id=equipment_id):
-                    raise ValueError(f"Número de série '{clean_serial}' já está cadastrado no sistema.")
+                if clean_serial and self.eq_repo.get_by_serial_number(
+                    clean_serial, exclude_id=equipment_id
+                ):
+                    raise ValueError(
+                        f"Número de série '{clean_serial}' já está cadastrado no sistema."
+                    )
                 equipment.serial_number = clean_serial
 
         # Validações de unicidade ativa
@@ -369,22 +409,30 @@ class UpdateEquipmentUseCase:
             old_host = equipment.hostname.lower() if equipment.hostname else None
             new_host = clean_host.lower() if clean_host else None
             if new_host != old_host:
-                if clean_host and self.eq_repo.get_active_by_hostname(clean_host, exclude_id=equipment_id):
-                    raise ValueError(f"Hostname '{clean_host}' já está em uso por outro equipamento ativo.")
+                if clean_host and self.eq_repo.get_active_by_hostname(
+                    clean_host, exclude_id=equipment_id
+                ):
+                    raise ValueError(
+                        f"Hostname '{clean_host}' já está em uso por outro equipamento ativo."
+                    )
                 equipment.hostname = clean_host
 
         if data.ip_address is not None:
             clean_ip = data.ip_address.strip() if data.ip_address else None
             if clean_ip != (str(equipment.ip_address) if equipment.ip_address else None):
                 if clean_ip and self.eq_repo.get_active_by_ip(clean_ip, exclude_id=equipment_id):
-                    raise ValueError(f"Endereço IP '{clean_ip}' já está em uso por outro equipamento ativo.")
+                    raise ValueError(
+                        f"Endereço IP '{clean_ip}' já está em uso por outro equipamento ativo."
+                    )
                 equipment.ip_address = clean_ip
 
         if data.mac_address is not None:
             clean_mac = data.mac_address.strip() if data.mac_address else None
             if clean_mac != (str(equipment.mac_address) if equipment.mac_address else None):
                 if clean_mac and self.eq_repo.get_active_by_mac(clean_mac, exclude_id=equipment_id):
-                    raise ValueError(f"Endereço MAC '{clean_mac}' já está em uso por outro equipamento ativo.")
+                    raise ValueError(
+                        f"Endereço MAC '{clean_mac}' já está em uso por outro equipamento ativo."
+                    )
                 equipment.mac_address = clean_mac
 
         if data.printer_identifier is not None:
@@ -392,8 +440,12 @@ class UpdateEquipmentUseCase:
             old_prn = equipment.printer_identifier.lower() if equipment.printer_identifier else None
             new_prn = clean_prn.lower() if clean_prn else None
             if new_prn != old_prn:
-                if clean_prn and self.eq_repo.get_active_by_printer_identifier(clean_prn, exclude_id=equipment_id):
-                    raise ValueError(f"Identificador de impressora '{clean_prn}' já está em uso por outro equipamento ativo.")
+                if clean_prn and self.eq_repo.get_active_by_printer_identifier(
+                    clean_prn, exclude_id=equipment_id
+                ):
+                    raise ValueError(
+                        f"Identificador de impressora '{clean_prn}' já está em uso por outro equipamento ativo."
+                    )
                 equipment.printer_identifier = clean_prn
 
         if data.description is not None:
@@ -406,7 +458,9 @@ class UpdateEquipmentUseCase:
             equipment.notes = data.notes
 
         if data.windows_product_key is not None:
-            equipment.windows_product_key_encrypted = encrypt_windows_product_key(data.windows_product_key)
+            equipment.windows_product_key_encrypted = encrypt_windows_product_key(
+                data.windows_product_key
+            )
 
         self.db.flush()
         return equipment
@@ -557,7 +611,9 @@ class MovementsUseCase:
     ) -> EquipmentMovement:
         movement = self.mov_repo.get_by_id(movement_id)
         if not movement or movement.equipment_id != equipment_id:
-            raise KeyError(f"Movimentação ID {movement_id} não encontrada para o equipamento ID {equipment_id}.")
+            raise KeyError(
+                f"Movimentação ID {movement_id} não encontrada para o equipamento ID {equipment_id}."
+            )
 
         old_origin = movement.origin_sector_id
         old_dest = movement.destination_sector_id
@@ -626,7 +682,9 @@ class MaintenancesUseCase:
 
         maint_type = self.cat_repo.get_by_id(MaintenanceType, data.maintenance_type_id)
         if not maint_type or maint_type.deleted_at is not None:
-            raise ValueError(f"Tipo de manutenção ID {data.maintenance_type_id} inválido ou inativo.")
+            raise ValueError(
+                f"Tipo de manutenção ID {data.maintenance_type_id} inválido ou inativo."
+            )
 
         # Localiza o status "Em manutenção"
         in_maint_status = self.cat_repo.get_by_name_lower(EquipmentStatus, "Em manutenção")
@@ -667,7 +725,9 @@ class MaintenancesUseCase:
 
         maintenance = self.maint_repo.get_by_id(maintenance_id)
         if not maintenance or maintenance.equipment_id != equipment_id:
-            raise KeyError(f"Manutenção ID {maintenance_id} não foi encontrada para este equipamento.")
+            raise KeyError(
+                f"Manutenção ID {maintenance_id} não foi encontrada para este equipamento."
+            )
 
         if maintenance.completed_at is not None:
             raise ValueError("Esta manutenção já foi concluída anteriormente.")
@@ -677,7 +737,9 @@ class MaintenancesUseCase:
             completed_at = completed_at.replace(tzinfo=timezone.utc)
 
         if completed_at < maintenance.started_at:
-            raise ValueError("A data/hora de conclusão não pode ser anterior ao início da manutenção.")
+            raise ValueError(
+                "A data/hora de conclusão não pode ser anterior ao início da manutenção."
+            )
 
         new_status = self.cat_repo.get_by_id(EquipmentStatus, data.new_status_id)
         if not new_status or new_status.deleted_at is not None:
@@ -705,7 +767,9 @@ class MaintenancesUseCase:
     ) -> EquipmentMaintenance:
         maintenance = self.maint_repo.get_by_id(maintenance_id)
         if not maintenance or maintenance.equipment_id != equipment_id:
-            raise KeyError(f"Manutenção ID {maintenance_id} não foi encontrada para este equipamento.")
+            raise KeyError(
+                f"Manutenção ID {maintenance_id} não foi encontrada para este equipamento."
+            )
 
         if data.maintenance_type_id is not None:
             mt = self.cat_repo.get_by_id(MaintenanceType, data.maintenance_type_id)
@@ -714,7 +778,9 @@ class MaintenancesUseCase:
             maintenance.maintenance_type_id = data.maintenance_type_id
 
         new_start = data.started_at or maintenance.started_at
-        new_complete = data.completed_at if data.completed_at is not None else maintenance.completed_at
+        new_complete = (
+            data.completed_at if data.completed_at is not None else maintenance.completed_at
+        )
 
         if new_start and new_start.tzinfo is None:
             new_start = new_start.replace(tzinfo=timezone.utc)

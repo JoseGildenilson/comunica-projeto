@@ -1,4 +1,5 @@
 """Caso de uso para consulta das métricas patrimoniais do Dashboard."""
+
 from sqlalchemy.orm import Session
 from src.domain.schemas import DashboardMetricsResponse
 from src.infrastructure.repositories import DashboardRepository
@@ -11,7 +12,9 @@ class GetDashboardMetricsUseCase:
         self.db = db
         self.dashboard_repo = DashboardRepository(db)
 
-    def execute(self, user_id: int | None = None, role: str = "tecnico") -> DashboardMetricsResponse:
+    def execute(
+        self, user_id: int | None = None, role: str = "tecnico"
+    ) -> DashboardMetricsResponse:
         """Executa a consulta de métricas patrimoniais consolidadas."""
         metrics = self.dashboard_repo.get_metrics()
         return DashboardMetricsResponse(

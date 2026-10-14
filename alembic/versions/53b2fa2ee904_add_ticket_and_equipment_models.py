@@ -42,6 +42,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_table('tickets')
-    op.drop_table('equipments')
+    op.execute('DROP TABLE IF EXISTS tickets CASCADE')
+    op.execute('DROP TABLE IF EXISTS equipments CASCADE')
 

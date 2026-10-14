@@ -1,4 +1,5 @@
 """Dependências HTTP do FastAPI para autenticação e autorização."""
+
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from src.core.database import get_db

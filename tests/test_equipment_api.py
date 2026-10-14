@@ -1,5 +1,7 @@
 """Testes de API HTTP para os endpoints de Gestão de Equipamentos e Catálogos (FastAPI)."""
 from datetime import datetime, timezone
+import io
+import openpyxl
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.orm import Session

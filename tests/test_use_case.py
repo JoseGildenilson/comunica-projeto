@@ -11,11 +11,11 @@ from src.use_cases.authenticate_user import (
 
 def test_authenticate_user_success(db_session: Session, create_test_user):
     """Testa o caso de uso com credenciais válidas."""
-    user = create_test_user(email="tecnico@empresa.com", password="SenhaSegura123!", role="tecnico")
+    user = create_test_user(email="tecnico_uc1@empresa.com", password="SenhaSegura123!", role="tecnico")
     use_case = AuthenticateUserUseCase(db_session)
 
     result = use_case.execute(
-        email="tecnico@empresa.com",
+        email="tecnico_uc1@empresa.com",
         password="SenhaSegura123!",
         ip_address="127.0.0.1",
     )
@@ -28,13 +28,13 @@ def test_authenticate_user_success(db_session: Session, create_test_user):
 
 def test_authenticate_user_invalid_password(db_session: Session, create_test_user):
     """Testa a rejeição com senha incorreta e registro de falha."""
-    create_test_user(email="tecnico@empresa.com", password="SenhaSegura123!")
+    create_test_user(email="tecnico_uc2@empresa.com", password="SenhaSegura123!")
     use_case = AuthenticateUserUseCase(db_session)
     test_ip = "192.168.0.1"
 
     with pytest.raises(InvalidCredentialsException):
         use_case.execute(
-            email="tecnico@empresa.com",
+            email="tecnico_uc2@empresa.com",
             password="SenhaIncorreta",
             ip_address=test_ip,
         )

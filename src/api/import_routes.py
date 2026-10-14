@@ -1,4 +1,5 @@
 """Roteador HTTP do FastAPI para Importação de Planilhas de Equipamentos."""
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
 from src.api.dependencies import require_tecnico_role

@@ -13,8 +13,8 @@ from src.domain.models import User, EquipmentType, Sector, EquipmentStatus, Main
 from src.main import app
 
 TEST_DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres@localhost:5432/comunica_test",
+    "TEST_DATABASE_URL",
+    os.getenv("DATABASE_URL", "postgresql://postgres@localhost:5432/comunica_test"),
 )
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
@@ -34,6 +34,7 @@ def setup_test_database():
     yield
 
 
+
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
@@ -44,14 +45,7 @@ def db_session():
     """Fornece uma sessão isolada para cada teste via SAVEPOINT, revertendo todas as alterações."""
     connection = test_engine.connect()
     transaction = connection.begin()
-    session = TestingSessionLocal(bind=connection)
-    nested = connection.begin_nested()
-
-    @event.listens_for(session, "after_transaction_end")
-    def restart_savepoint(session_obj, trans):
-        nonlocal nested
-        if trans.nested and not trans._parent.nested:
-            nested = connection.begin_nested()
+    session = Session(bind=connection, join_transaction_mode="create_savepoint")
 
     try:
         yield session

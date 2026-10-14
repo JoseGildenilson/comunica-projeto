@@ -1,9 +1,11 @@
 """Módulo de segurança para criptografia de senhas (Argon2id) e emissão/validação de JWTs."""
+
 import base64
 from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
 import json
+import os
 from typing import Any, Dict
 from src.core.config import settings
 
@@ -11,6 +13,7 @@ from src.core.config import settings
 try:  # pragma: no cover
     from argon2 import PasswordHasher  # type: ignore
     from argon2.exceptions import VerifyMismatchError  # type: ignore
+
     _argon2_hasher = PasswordHasher()
 except ImportError:  # pragma: no cover
     _argon2_hasher = None  # fallback interno
@@ -20,9 +23,9 @@ def hash_password(password: str) -> str:
     """Gera o hash da senha utilizando o algoritmo Argon2id."""
     if _argon2_hasher is not None:  # pragma: no cover
         return _argon2_hasher.hash(password)
-    
-    # Fallback seguro via hashlib (scrypt) formatado para simulação de Argon2id
-    salt = hashlib.sha256(settings.SECRET_KEY.encode()).digest()[:16]
+
+    # Fallback seguro via hashlib (scrypt) formatado para simulação de Argon2id com salt aleatório
+    salt = os.urandom(16)
     derived = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1, dklen=32)
     salt_b64 = base64.b64encode(salt).decode().rstrip("=")
     derived_b64 = base64.b64encode(derived).decode().rstrip("=")
@@ -31,6 +34,9 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verifica se a senha fornecida corresponde ao hash Argon2id."""
+    if not hashed_password or not isinstance(hashed_password, str):
+        return False
+
     if _argon2_hasher is not None and hashed_password.startswith("$argon2"):  # pragma: no cover
         try:
             return _argon2_hasher.verify(hashed_password, plain_password)
@@ -39,10 +45,25 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         except Exception:
             return False
 
-    # Fallback para verificação do hash gerado pelo fallback
+    # Fallback para verificação do hash gerado pelo fallback (com extração de salt)
     if hashed_password.startswith("$argon2id$v=19$m=65536,t=3,p=4$"):
-        computed = hash_password(plain_password)
-        return hmac.compare_digest(computed, hashed_password)
+        try:
+            payload = hashed_password[len("$argon2id$v=19$m=65536,t=3,p=4$") :]
+            if "$" in payload:
+                salt_b64, stored_derived_b64 = payload.split("$", 1)
+            else:
+                salt_b64 = payload[:22]
+                stored_derived_b64 = payload[22:]
+
+            salt_padded = salt_b64 + "=" * (-len(salt_b64) % 4)
+            salt = base64.b64decode(salt_padded)
+            derived = hashlib.scrypt(
+                plain_password.encode(), salt=salt, n=16384, r=8, p=1, dklen=32
+            )
+            derived_b64 = base64.b64encode(derived).decode().rstrip("=")
+            return hmac.compare_digest(derived_b64, stored_derived_b64)
+        except Exception:
+            return False
     return False
 
 
@@ -62,11 +83,13 @@ def create_token(data: Dict[str, Any], expires_delta: timedelta, token_type: str
     to_encode = data.copy()
     now = datetime.now(timezone.utc)
     expire = now + expires_delta
-    to_encode.update({
-        "exp": int(expire.timestamp()),
-        "iat": int(now.timestamp()),
-        "type": token_type,
-    })
+    to_encode.update(
+        {
+            "exp": int(expire.timestamp()),
+            "iat": int(now.timestamp()),
+            "type": token_type,
+        }
+    )
 
     if pyjwt is not None:  # pragma: no cover
         return pyjwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -135,6 +158,7 @@ def decode_token(token: str) -> Dict[str, Any]:
 
 def _get_fernet():
     from cryptography.fernet import Fernet
+
     key = base64.urlsafe_b64encode(hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).digest())
     return Fernet(key)
 

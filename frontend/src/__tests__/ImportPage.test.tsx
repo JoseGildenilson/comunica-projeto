@@ -87,9 +87,11 @@ describe('ImportPage (Frontend)', () => {
       </AuthProvider>
     );
 
-    expect(screen.getByText('Importação de Planilha')).toBeInTheDocument();
-    expect(screen.getByText('Carregar Arquivo de Inventário')).toBeInTheDocument();
-    expect(screen.getByText('Clique para escolher o arquivo')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Importação de Planilha')).toBeInTheDocument();
+      expect(screen.getByText('Carregar Arquivo de Inventário')).toBeInTheDocument();
+      expect(screen.getByText('Clique para escolher o arquivo')).toBeInTheDocument();
+    });
   });
 
   it('Gera pré-visualização ao selecionar arquivo com sucesso', async () => {

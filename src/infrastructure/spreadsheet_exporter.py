@@ -1,4 +1,5 @@
 """Utilitário para geração e exportação de planilhas Excel (.xlsx) de equipamentos."""
+
 import io
 from datetime import datetime, timezone
 import openpyxl
@@ -25,15 +26,15 @@ HEADERS = [
 ]
 
 COLUMN_WIDTHS = {
-    1: 16.0,   # A - TIPO
-    2: 20.0,   # B - LOCALIZAÇÃO
-    3: 18.0,   # C - SITUAÇÃO
-    4: 38.0,   # D - DESCRIÇÃO
-    5: 16.0,   # E - Nº PATRIMÔNIO
-    6: 18.0,   # F - Nº SÉRIE
-    7: 14.0,   # G - MARCA
-    8: 18.0,   # H - ÚLTIMA MANUTENÇÃO
-    9: 32.0,   # I - CHAVE WINDOWS
+    1: 16.0,  # A - TIPO
+    2: 20.0,  # B - LOCALIZAÇÃO
+    3: 18.0,  # C - SITUAÇÃO
+    4: 38.0,  # D - DESCRIÇÃO
+    5: 16.0,  # E - Nº PATRIMÔNIO
+    6: 18.0,  # F - Nº SÉRIE
+    7: 14.0,  # G - MARCA
+    8: 18.0,  # H - ÚLTIMA MANUTENÇÃO
+    9: 32.0,  # I - CHAVE WINDOWS
     10: 20.0,  # J - MODELO
     11: 45.0,  # K - HISTÓRICO DE MANUTENÇÕES
     12: 16.0,  # L - HOSTNAME
@@ -48,13 +49,15 @@ def _format_maintenances(equipment: Equipment) -> str:
 
     sorted_maints = sorted(
         equipment.maintenances,
-        key=lambda m: (m.started_at or datetime.min.replace(tzinfo=timezone.utc)),
+        key=lambda m: m.started_at or datetime.min.replace(tzinfo=timezone.utc),
     )
 
     lines: list[str] = []
     for m in sorted_maints:
         date_str = m.started_at.strftime("%d/%m/%Y") if m.started_at else ""
-        type_str = m.maintenance_type.name if (m.maintenance_type and m.maintenance_type.name) else None
+        type_str = (
+            m.maintenance_type.name if (m.maintenance_type and m.maintenance_type.name) else None
+        )
         desc = m.description.strip() if (m.description and m.description.strip()) else type_str
         notes = f" (Obs: {m.notes.strip()})" if m.notes and m.notes.strip() else ""
 
@@ -121,7 +124,9 @@ def generate_equipments_excel(equipments: list[Equipment]) -> bytes:
 
         latest_maint = None
         if eq.maintenances:
-            latest_maint = max((m.started_at for m in eq.maintenances if m.started_at), default=None)
+            latest_maint = max(
+                (m.started_at for m in eq.maintenances if m.started_at), default=None
+            )
 
         type_name = eq.equipment_type.name if eq.equipment_type else ""
         sector_name = eq.sector.name if eq.sector else ""

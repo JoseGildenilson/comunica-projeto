@@ -1,4 +1,5 @@
 """Rotas HTTP do FastAPI para gerenciamento dos 4 catálogos estruturais."""
+
 from typing import List, Type
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -36,7 +37,9 @@ def create_catalog_router(
 
     @router.get("", response_model=List[response_schema])
     def list_items(
-        include_inactive: bool = Query(default=False, description="Incluir itens inativos (soft deleted)"),
+        include_inactive: bool = Query(
+            default=False, description="Incluir itens inativos (soft deleted)"
+        ),
         db: Session = Depends(get_db),
         current_user: User = Depends(require_tecnico_role),
     ):

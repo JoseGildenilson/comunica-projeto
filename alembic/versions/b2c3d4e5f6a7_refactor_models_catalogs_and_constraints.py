@@ -278,3 +278,14 @@ def downgrade() -> None:
     op.execute("DROP TABLE IF EXISTS equipment_statuses CASCADE;")
     op.execute("DROP TABLE IF EXISTS sectors CASCADE;")
     op.execute("DROP TABLE IF EXISTS equipment_types CASCADE;")
+
+    # Reverte alterações em login_attempts e users para o estado anterior
+    op.drop_index("ix_login_attempts_email_attempted_at", table_name="login_attempts")
+    op.drop_index("ix_login_attempts_ip_attempted_at", table_name="login_attempts")
+    op.execute("ALTER TABLE login_attempts ALTER COLUMN ip_address TYPE varchar(45) USING ip_address::text;")
+    op.drop_column("login_attempts", "email_attempted")
+
+    op.execute("DROP INDEX IF EXISTS uq_users_email_lower;")
+    op.create_index("ix_users_email", "users", ["email"], unique=True)
+    op.drop_constraint("chk_users_role_tecnico", "users", type_="check")
+    op.drop_column("users", "deleted_at")

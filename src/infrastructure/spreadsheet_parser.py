@@ -1,4 +1,5 @@
 """Utilitário para leitura, parsing e sanitização de planilhas de equipamentos (.xlsx / .csv)."""
+
 import csv
 import io
 import re
@@ -12,6 +13,7 @@ import openpyxl
 @dataclass
 class ParsedSpreadsheetRow:
     """Representação estruturada de uma linha de equipamento parseada."""
+
     row_number: int
     equipment_type: str
     location: str
@@ -35,6 +37,7 @@ class ParsedSpreadsheetRow:
 @dataclass
 class ParsedSpreadsheet:
     """Resultado do parsing completo da planilha."""
+
     filename: str
     detected_sheet: str | None
     headers: list[str]
@@ -61,16 +64,53 @@ def _map_headers(raw_headers: list[Any]) -> dict[str, int]:
         "location": ["localizacao", "local", "setor", "unidade"],
         "status": ["situacao", "status", "estado"],
         "description": ["descricao", "especificacao", "equipamento"],
-        "patrimony_number": ["npatrimonio", "nopatrimonio", "numeropatrimonio", "patrimonio", "tombo", "ntombo", "notombo"],
-        "serial_number": ["nserie", "noserie", "numeroserie", "serie", "serial", "serialnumber", "ns"],
+        "patrimony_number": [
+            "npatrimonio",
+            "nopatrimonio",
+            "numeropatrimonio",
+            "patrimonio",
+            "tombo",
+            "ntombo",
+            "notombo",
+        ],
+        "serial_number": [
+            "nserie",
+            "noserie",
+            "numeroserie",
+            "serie",
+            "serial",
+            "serialnumber",
+            "ns",
+        ],
         "brand": ["marca", "fabricante"],
-        "model": ["modelo", "model", "nproduto", "noproduto", "numeroproduto", "pn", "partnumber", "produto"],
+        "model": [
+            "modelo",
+            "model",
+            "nproduto",
+            "noproduto",
+            "numeroproduto",
+            "pn",
+            "partnumber",
+            "produto",
+        ],
         "ip_address": ["ip", "ipaddress", "enderecoip", "ipv4"],
         "mac_address": ["mac", "macaddress", "enderecomac"],
         "printer_identifier": ["identificadorimpressora", "idimpressora", "impressoraid"],
-        "last_maintenance_at": ["ultimamanutencao", "datamanutencao", "manutencao", "ultimaintervencao"],
+        "last_maintenance_at": [
+            "ultimamanutencao",
+            "datamanutencao",
+            "manutencao",
+            "ultimaintervencao",
+        ],
         "windows_key": ["chavewindows", "licencawindows", "chave", "licenca", "windowskey"],
-        "hist_mov": ["historicodemovimentacoes", "historicodemovimentacao", "historicomovimentacoes", "historico", "movimentacoes", "intervencoes"],
+        "hist_mov": [
+            "historicodemovimentacoes",
+            "historicodemovimentacao",
+            "historicomovimentacoes",
+            "historico",
+            "movimentacoes",
+            "intervencoes",
+        ],
         "hostname": ["hostname", "host", "nomered"],
         "notes": ["observacoes", "observacao", "obs", "comentarios", "notas"],
     }

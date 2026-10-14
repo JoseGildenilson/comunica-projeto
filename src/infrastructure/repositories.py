@@ -3,6 +3,7 @@
 Nota: Em cumprimento à Constituição, os repositórios NÃO executam commit ou rollback.
 O controle de transação é feito no nível do caso de uso ou rota HTTP.
 """
+
 from datetime import datetime, timedelta, timezone
 from typing import Type, TypeVar
 from sqlalchemy import select, update, func, or_, desc, asc
@@ -81,8 +82,6 @@ class DashboardRepository:
 
     def get_metrics(self) -> dict:
         """Calcula os indicadores patrimoniais para equipamentos ativos (deleted_at IS NULL)."""
-        active_eq = select(Equipment).where(Equipment.deleted_at.is_(None))
-
         # Total de equipamentos ativos
         total_stmt = select(func.count(Equipment.id)).where(Equipment.deleted_at.is_(None))
         equipments_total = self.db.execute(total_stmt).scalar() or 0
@@ -175,13 +174,10 @@ class LoginAttemptRepository:
     def count_recent_failed_attempts(self, ip_address: str, window_minutes: int = 15) -> int:
         """Conta tentativas malsucedidas de um IP na janela de tempo especificada."""
         cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
-        stmt = (
-            select(func.count(LoginAttempt.id))
-            .where(
-                LoginAttempt.ip_address == ip_address,
-                LoginAttempt.success.is_(False),
-                LoginAttempt.attempted_at >= cutoff_time,
-            )
+        stmt = select(func.count(LoginAttempt.id)).where(
+            LoginAttempt.ip_address == ip_address,
+            LoginAttempt.success.is_(False),
+            LoginAttempt.attempted_at >= cutoff_time,
         )
         count = self.db.execute(stmt).scalar()
         return count or 0
@@ -213,8 +209,12 @@ class EquipmentRepository:
                 selectinload(Equipment.sector),
                 selectinload(Equipment.status),
                 selectinload(Equipment.movements).selectinload(EquipmentMovement.origin_sector),
-                selectinload(Equipment.movements).selectinload(EquipmentMovement.destination_sector),
-                selectinload(Equipment.maintenances).selectinload(EquipmentMaintenance.maintenance_type),
+                selectinload(Equipment.movements).selectinload(
+                    EquipmentMovement.destination_sector
+                ),
+                selectinload(Equipment.maintenances).selectinload(
+                    EquipmentMaintenance.maintenance_type
+                ),
             )
             .where(Equipment.id == equipment_id)
         )
@@ -222,37 +222,57 @@ class EquipmentRepository:
             stmt = stmt.where(Equipment.deleted_at.is_(None))
         return self.db.execute(stmt).scalar_one_or_none()
 
-    def get_by_patrimony_number(self, patrimony_number: str, exclude_id: int | None = None, include_deleted: bool = True) -> Equipment | None:
+    def get_by_patrimony_number(
+        self, patrimony_number: str, exclude_id: int | None = None, include_deleted: bool = True
+    ) -> Equipment | None:
         """Busca equipamento por Nº de Patrimônio (case-insensitive permanente, inclusive excluídos por padrão)."""
-        stmt = select(Equipment).where(func.lower(Equipment.patrimony_number) == patrimony_number.strip().lower())
-        if not include_deleted:
-            stmt = stmt.where(Equipment.deleted_at.is_(None))
-        if exclude_id is not None:
-            stmt = stmt.where(Equipment.id != exclude_id)
-        return self.db.execute(stmt).scalar_one_or_none()
-
-    def get_by_serial_number(self, serial_number: str, exclude_id: int | None = None, include_deleted: bool = True) -> Equipment | None:
-        """Busca equipamento por Nº de Série (case-insensitive permanente onde não nulo)."""
-        if not serial_number or not serial_number.strip():
+        if not patrimony_number or not str(patrimony_number).strip():
             return None
-        stmt = select(Equipment).where(func.lower(Equipment.serial_number) == serial_number.strip().lower())
+        stmt = select(Equipment).where(
+            func.lower(Equipment.patrimony_number) == str(patrimony_number).strip().lower()
+        )
         if not include_deleted:
             stmt = stmt.where(Equipment.deleted_at.is_(None))
         if exclude_id is not None:
             stmt = stmt.where(Equipment.id != exclude_id)
         return self.db.execute(stmt).scalar_one_or_none()
 
-    def get_active_by_hostname(self, hostname: str, exclude_id: int | None = None) -> Equipment | None:
+    def get_by_serial_number(
+        self, serial_number: str, exclude_id: int | None = None, include_deleted: bool = True
+    ) -> Equipment | None:
+        """Busca equipamento por Nº de Série (case-insensitive permanente onde não nulo)."""
+        if not serial_number or not str(serial_number).strip():
+            return None
+        stmt = select(Equipment).where(
+            func.lower(Equipment.serial_number) == str(serial_number).strip().lower()
+        )
+        if not include_deleted:
+            stmt = stmt.where(Equipment.deleted_at.is_(None))
+        if exclude_id is not None:
+            stmt = stmt.where(Equipment.id != exclude_id)
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def get_active_by_hostname(
+        self, hostname: str, exclude_id: int | None = None
+    ) -> Equipment | None:
         """Busca por hostname ativo (case-insensitive apenas entre bens não excluídos)."""
-        if not hostname or not hostname.strip():
+        if not hostname or not str(hostname).strip():
             return None
         stmt = select(Equipment).where(
             Equipment.deleted_at.is_(None),
-            func.lower(Equipment.hostname) == hostname.strip().lower(),
+            func.lower(Equipment.hostname) == str(hostname).strip().lower(),
         )
         if exclude_id is not None:
             stmt = stmt.where(Equipment.id != exclude_id)
         return self.db.execute(stmt).scalar_one_or_none()
+
+    def get_by_hostname(
+        self, hostname: str | None, exclude_id: int | None = None
+    ) -> Equipment | None:
+        """Busca equipamento ativo por Hostname (compatibilidade)."""
+        if not hostname or not str(hostname).strip():
+            return None
+        return self.get_active_by_hostname(str(hostname), exclude_id=exclude_id)
 
     def get_active_by_ip(self, ip_address: str, exclude_id: int | None = None) -> Equipment | None:
         """Busca por IP ativo (apenas entre bens não excluídos)."""
@@ -266,7 +286,9 @@ class EquipmentRepository:
             stmt = stmt.where(Equipment.id != exclude_id)
         return self.db.execute(stmt).scalar_one_or_none()
 
-    def get_active_by_mac(self, mac_address: str, exclude_id: int | None = None) -> Equipment | None:
+    def get_active_by_mac(
+        self, mac_address: str, exclude_id: int | None = None
+    ) -> Equipment | None:
         """Busca por MAC ativo (apenas entre bens não excluídos)."""
         if not mac_address or not mac_address.strip():
             return None
@@ -278,7 +300,9 @@ class EquipmentRepository:
             stmt = stmt.where(Equipment.id != exclude_id)
         return self.db.execute(stmt).scalar_one_or_none()
 
-    def get_active_by_printer_identifier(self, printer_identifier: str, exclude_id: int | None = None) -> Equipment | None:
+    def get_active_by_printer_identifier(
+        self, printer_identifier: str, exclude_id: int | None = None
+    ) -> Equipment | None:
         """Busca por identificador de impressora ativo (case-insensitive apenas entre ativos)."""
         if not printer_identifier or not printer_identifier.strip():
             return None
@@ -296,19 +320,29 @@ class EquipmentRepository:
         if equipment.hostname:
             c = self.get_active_by_hostname(equipment.hostname, exclude_id=equipment.id)
             if c:
-                conflicts.append(f"Hostname '{equipment.hostname}' já está em uso pelo equipamento ativo ID {c.id}.")
+                conflicts.append(
+                    f"Hostname '{equipment.hostname}' já está em uso pelo equipamento ativo ID {c.id}."
+                )
         if equipment.ip_address:
             c = self.get_active_by_ip(str(equipment.ip_address), exclude_id=equipment.id)
             if c:
-                conflicts.append(f"Endereço IP '{equipment.ip_address}' já está em uso pelo equipamento ativo ID {c.id}.")
+                conflicts.append(
+                    f"Endereço IP '{equipment.ip_address}' já está em uso pelo equipamento ativo ID {c.id}."
+                )
         if equipment.mac_address:
             c = self.get_active_by_mac(str(equipment.mac_address), exclude_id=equipment.id)
             if c:
-                conflicts.append(f"Endereço MAC '{equipment.mac_address}' já está em uso pelo equipamento ativo ID {c.id}.")
+                conflicts.append(
+                    f"Endereço MAC '{equipment.mac_address}' já está em uso pelo equipamento ativo ID {c.id}."
+                )
         if equipment.printer_identifier:
-            c = self.get_active_by_printer_identifier(equipment.printer_identifier, exclude_id=equipment.id)
+            c = self.get_active_by_printer_identifier(
+                equipment.printer_identifier, exclude_id=equipment.id
+            )
             if c:
-                conflicts.append(f"Identificador de impressora '{equipment.printer_identifier}' já está em uso pelo equipamento ativo ID {c.id}.")
+                conflicts.append(
+                    f"Identificador de impressora '{equipment.printer_identifier}' já está em uso pelo equipamento ativo ID {c.id}."
+                )
         return conflicts
 
     def _build_filter_query(
@@ -358,7 +392,9 @@ class EquipmentRepository:
 
         patrimonies = normalize_str_list(patrimony_number)
         if patrimonies:
-            query = query.where(or_(*[Equipment.patrimony_number.ilike(f"%{p}%") for p in patrimonies]))
+            query = query.where(
+                or_(*[Equipment.patrimony_number.ilike(f"%{p}%") for p in patrimonies])
+            )
 
         serials = normalize_str_list(serial_number)
         if serials:
@@ -443,7 +479,9 @@ class EquipmentRepository:
             search=search,
             include_deleted=include_deleted,
         ).options(
-            selectinload(Equipment.maintenances).selectinload(EquipmentMaintenance.maintenance_type),
+            selectinload(Equipment.maintenances).selectinload(
+                EquipmentMaintenance.maintenance_type
+            ),
             selectinload(Equipment.movements),
         )
 
@@ -559,12 +597,9 @@ class EquipmentMaintenanceRepository:
 
     def get_open_maintenance(self, equipment_id: int) -> EquipmentMaintenance | None:
         """Retorna a manutenção em andamento (completed_at IS NULL) se existir."""
-        stmt = (
-            select(EquipmentMaintenance)
-            .where(
-                EquipmentMaintenance.equipment_id == equipment_id,
-                EquipmentMaintenance.completed_at.is_(None),
-            )
+        stmt = select(EquipmentMaintenance).where(
+            EquipmentMaintenance.equipment_id == equipment_id,
+            EquipmentMaintenance.completed_at.is_(None),
         )
         return self.db.execute(stmt).scalar_one_or_none()
 

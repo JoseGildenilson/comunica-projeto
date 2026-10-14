@@ -1,4 +1,5 @@
 """Rotas da API de Autenticação."""
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 from src.api.dependencies import get_current_user
@@ -14,20 +15,58 @@ from src.use_cases.authenticate_user import (
     RateLimitExceededException,
 )
 
+import ipaddress
+
 router = APIRouter(prefix="/api/v1/auth", tags=["Autenticação"])
+
+TRUSTED_PROXIES = {"127.0.0.1", "::1", "localhost", "testserver"}
+
+TRUSTED_NETWORKS = (
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),
+    ipaddress.ip_network("fe80::/10"),
+)
+
+
+def _is_trusted_proxy(host: str) -> bool:
+    """Verifica se o host de origem é um proxy confiável (loopback ou rede privada/Docker)."""
+    if not host:
+        return False
+    if host in TRUSTED_PROXIES:
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+        return any(ip in net for net in TRUSTED_NETWORKS)
+    except ValueError:
+        return False
 
 
 def _extract_client_ip(request: Request) -> str:
-    """Extrai o IP do cliente considerando os cabeçalhos de proxy."""
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-    real_ip = request.headers.get("X-Real-IP")
-    if real_ip:
-        return real_ip.strip()
-    if request.client and request.client.host:
-        return request.client.host
-    return "127.0.0.1"
+    """Extrai o IP do cliente considerando os cabeçalhos de proxy apenas para proxies confiáveis."""
+    client_host = request.client.host if request.client and request.client.host else "127.0.0.1"
+
+    if _is_trusted_proxy(client_host):
+        # 1. Prioriza X-Real-IP quando fornecido pelo proxy (e.g. Nginx proxy_set_header X-Real-IP $remote_addr)
+        real_ip = request.headers.get("X-Real-IP")
+        if real_ip and real_ip.strip():
+            return real_ip.strip()
+
+        # 2. Processa X-Forwarded-For da direita para a esquerda contra spoofing de prefixo
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            ips = [item.strip() for item in forwarded_for.split(",") if item.strip()]
+            if ips:
+                client_ip = ips[0]
+                for ip in reversed(ips):
+                    if not _is_trusted_proxy(ip):
+                        return ip
+                return client_ip
+
+    return client_host
 
 
 @router.post(
@@ -36,7 +75,10 @@ def _extract_client_ip(request: Request) -> str:
     status_code=status.HTTP_200_OK,
     responses={
         401: {"model": MessageResponse, "description": "Credenciais inválidas"},
-        429: {"model": MessageResponse, "description": "Bloqueado por excesso de tentativas (Rate Limit)"},
+        429: {
+            "model": MessageResponse,
+            "description": "Bloqueado por excesso de tentativas (Rate Limit)",
+        },
     },
 )
 def login(

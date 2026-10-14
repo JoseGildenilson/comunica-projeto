@@ -1,4 +1,5 @@
 """Roteador HTTP do FastAPI para Gestão de Equipamentos (Patrimônio)."""
+
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
@@ -43,15 +44,23 @@ router = APIRouter(prefix="/api/v1/equipments", tags=["Equipamentos"])
 def list_equipments(
     page: int = Query(default=1, ge=1, description="Número da página"),
     limit: int = Query(default=25, ge=1, le=100, description="Itens por página"),
-    type: List[int] | None = Query(default=None, description="Filtro por IDs de tipo de equipamento"),
+    type: List[int] | None = Query(
+        default=None, description="Filtro por IDs de tipo de equipamento"
+    ),
     sector: List[int] | None = Query(default=None, description="Filtro por IDs de setor"),
-    status_id: List[int] | None = Query(default=None, alias="status", description="Filtro por IDs de situação patrimonial"),
-    patrimony_number: List[str] | None = Query(default=None, description="Filtro por número de patrimônio"),
+    status_id: List[int] | None = Query(
+        default=None, alias="status", description="Filtro por IDs de situação patrimonial"
+    ),
+    patrimony_number: List[str] | None = Query(
+        default=None, description="Filtro por número de patrimônio"
+    ),
     serial_number: List[str] | None = Query(default=None, description="Filtro por número de série"),
     search: str | None = Query(default=None, description="Busca textual global"),
     sort_by: str = Query(default="created_at", description="Campo para ordenação"),
     sort_dir: str = Query(default="desc", description="Direção da ordenação: asc/desc"),
-    include_deleted: bool = Query(default=False, description="Incluir equipamentos excluídos logicamente"),
+    include_deleted: bool = Query(
+        default=False, description="Incluir equipamentos excluídos logicamente"
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_tecnico_role),
 ):
@@ -108,10 +117,16 @@ def get_suggestions(
 
 @router.get("/export")
 def export_equipments(
-    type: List[int] | None = Query(default=None, description="Filtro por IDs de tipo de equipamento"),
+    type: List[int] | None = Query(
+        default=None, description="Filtro por IDs de tipo de equipamento"
+    ),
     sector: List[int] | None = Query(default=None, description="Filtro por IDs de setor"),
-    status_id: List[int] | None = Query(default=None, alias="status", description="Filtro por IDs de situação patrimonial"),
-    patrimony_number: List[str] | None = Query(default=None, description="Filtro por número de patrimônio"),
+    status_id: List[int] | None = Query(
+        default=None, alias="status", description="Filtro por IDs de situação patrimonial"
+    ),
+    patrimony_number: List[str] | None = Query(
+        default=None, description="Filtro por número de patrimônio"
+    ),
     serial_number: List[str] | None = Query(default=None, description="Filtro por número de série"),
     search: str | None = Query(default=None, description="Busca textual global"),
     sort_by: str = Query(default="created_at", description="Campo para ordenação"),
@@ -228,7 +243,10 @@ def get_windows_key(
 
 # --- Movimentações ---
 
-@router.post("/{id}/movements", response_model=EquipmentMovementResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/{id}/movements", response_model=EquipmentMovementResponse, status_code=status.HTTP_201_CREATED
+)
 def record_movement(
     id: int,
     data: EquipmentMovementCreate,
@@ -283,7 +301,12 @@ def update_movement(
 
 # --- Manutenções ---
 
-@router.post("/{id}/maintenances", response_model=EquipmentMaintenanceResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/{id}/maintenances",
+    response_model=EquipmentMaintenanceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def start_maintenance(
     id: int,
     data: EquipmentMaintenanceStart,
@@ -312,7 +335,9 @@ def start_maintenance(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.post("/{id}/maintenances/{maintenance_id}/complete", response_model=EquipmentMaintenanceResponse)
+@router.post(
+    "/{id}/maintenances/{maintenance_id}/complete", response_model=EquipmentMaintenanceResponse
+)
 def complete_maintenance(
     id: int,
     maintenance_id: int,

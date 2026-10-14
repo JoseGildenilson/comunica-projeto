@@ -1,4 +1,5 @@
 """Casos de uso para pré-visualização e execução de importação de planilhas."""
+
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from src.core.security import encrypt_windows_product_key
@@ -47,7 +48,9 @@ class PreviewSpreadsheetUseCase:
                     mac_address=r.mac_address,
                     printer_identifier=r.printer_identifier,
                     windows_key=r.windows_key,
-                    last_maintenance_at=r.last_maintenance_at.strftime("%d/%m/%Y") if r.last_maintenance_at else None,
+                    last_maintenance_at=r.last_maintenance_at.strftime("%d/%m/%Y")
+                    if r.last_maintenance_at
+                    else None,
                     hist_mov=r.hist_mov,
                     hostname=r.hostname,
                     notes=r.notes,
@@ -156,7 +159,9 @@ class ExecuteSpreadsheetImportUseCase:
                     equipment.hostname = row.hostname or equipment.hostname
                     equipment.ip_address = cleaned_ip or equipment.ip_address
                     equipment.mac_address = row.mac_address or equipment.mac_address
-                    equipment.printer_identifier = row.printer_identifier or equipment.printer_identifier
+                    equipment.printer_identifier = (
+                        row.printer_identifier or equipment.printer_identifier
+                    )
                     if encrypted_windows_key:
                         equipment.windows_product_key_encrypted = encrypted_windows_key
                     equipment.notes = row.notes or equipment.notes
@@ -190,7 +195,9 @@ class ExecuteSpreadsheetImportUseCase:
 
                 # 5. Registro consolidado de histórico de manutenção se houver
                 if row.hist_mov:
-                    hist_maint_type = ensure_catalog(MaintenanceType, all_maint_types, "Histórico Importado")
+                    hist_maint_type = ensure_catalog(
+                        MaintenanceType, all_maint_types, "Histórico Importado"
+                    )
                     maint_date = row.last_maintenance_at or datetime.now(timezone.utc)
                     maintenance = EquipmentMaintenance(
                         equipment_id=equipment.id,

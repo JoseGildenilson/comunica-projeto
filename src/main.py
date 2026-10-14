@@ -1,4 +1,5 @@
 """Aplicação principal do FastAPI."""
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from src.api.routes import router as auth_router
