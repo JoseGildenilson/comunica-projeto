@@ -1,4 +1,5 @@
 """Schemas Pydantic para validação e transporte de dados (DTOs)."""
+
 import ipaddress
 from datetime import datetime, timezone
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -6,14 +7,17 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 # --- Schemas de Usuários e Autenticação ---
 
+
 class LoginRequest(BaseModel):
     """Schema para requisição de login."""
+
     email: EmailStr = Field(..., description="Endereço de email do usuário")
     password: str = Field(..., min_length=1, description="Senha do usuário")
 
 
 class UserResponse(BaseModel):
     """Schema de resposta representando os dados públicos do usuário."""
+
     id: int
     email: str
     role: str
@@ -26,6 +30,7 @@ class UserResponse(BaseModel):
 
 class TokenResponse(BaseModel):
     """Schema para resposta de autenticação com token."""
+
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
@@ -33,11 +38,13 @@ class TokenResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     """Schema genérico para respostas de mensagem ou erro."""
+
     message: str
 
 
 class LoginAttemptResponse(BaseModel):
     """Schema para resposta de tentativa de login (auditoria)."""
+
     id: int
     email_attempted: str
     ip_address: str
@@ -49,8 +56,10 @@ class LoginAttemptResponse(BaseModel):
 
 # --- Schemas de Catálogos Estruturais ---
 
+
 class CatalogItemCreate(BaseModel):
     """Schema base para criação de item de catálogo."""
+
     name: str = Field(..., min_length=1, description="Nome padronizado do item de catálogo")
 
     @field_validator("name")
@@ -64,6 +73,7 @@ class CatalogItemCreate(BaseModel):
 
 class CatalogItemUpdate(BaseModel):
     """Schema base para atualização de item de catálogo."""
+
     name: str = Field(..., min_length=1, description="Novo nome do item de catálogo")
 
     @field_validator("name")
@@ -77,6 +87,7 @@ class CatalogItemUpdate(BaseModel):
 
 class CatalogItemResponse(BaseModel):
     """Schema base de resposta para item de catálogo."""
+
     id: int
     name: str
     created_at: datetime
@@ -89,8 +100,10 @@ class CatalogItemResponse(BaseModel):
 class EquipmentTypeCreate(CatalogItemCreate):
     pass
 
+
 class EquipmentTypeUpdate(CatalogItemUpdate):
     pass
+
 
 class EquipmentTypeResponse(CatalogItemResponse):
     pass
@@ -99,8 +112,10 @@ class EquipmentTypeResponse(CatalogItemResponse):
 class SectorCreate(CatalogItemCreate):
     pass
 
+
 class SectorUpdate(CatalogItemUpdate):
     pass
+
 
 class SectorResponse(CatalogItemResponse):
     pass
@@ -109,8 +124,10 @@ class SectorResponse(CatalogItemResponse):
 class EquipmentStatusCreate(CatalogItemCreate):
     pass
 
+
 class EquipmentStatusUpdate(CatalogItemUpdate):
     pass
+
 
 class EquipmentStatusResponse(CatalogItemResponse):
     pass
@@ -119,8 +136,10 @@ class EquipmentStatusResponse(CatalogItemResponse):
 class MaintenanceTypeCreate(CatalogItemCreate):
     pass
 
+
 class MaintenanceTypeUpdate(CatalogItemUpdate):
     pass
+
 
 class MaintenanceTypeResponse(CatalogItemResponse):
     pass
@@ -128,8 +147,10 @@ class MaintenanceTypeResponse(CatalogItemResponse):
 
 # --- Schemas de Movimentação ---
 
+
 class EquipmentMovementCreate(BaseModel):
     """Schema para registro de movimentação de localização/setor."""
+
     origin_sector_id: int = Field(..., description="ID do setor de origem")
     destination_sector_id: int = Field(..., description="ID do setor de destino")
     movement_date: datetime = Field(
@@ -141,6 +162,7 @@ class EquipmentMovementCreate(BaseModel):
 
 class EquipmentMovementUpdate(BaseModel):
     """Schema para alteração de movimentação."""
+
     origin_sector_id: int | None = Field(default=None, description="ID do setor de origem")
     destination_sector_id: int | None = Field(default=None, description="ID do setor de destino")
     movement_date: datetime | None = Field(default=None, description="Data da movimentação")
@@ -149,6 +171,7 @@ class EquipmentMovementUpdate(BaseModel):
 
 class EquipmentMovementResponse(BaseModel):
     """Schema de resposta para movimentação."""
+
     id: int
     equipment_id: int
     origin_sector_id: int
@@ -166,8 +189,10 @@ class EquipmentMovementResponse(BaseModel):
 
 # --- Schemas de Manutenção ---
 
+
 class EquipmentMaintenanceStart(BaseModel):
     """Schema para início de manutenção."""
+
     maintenance_type_id: int = Field(..., description="ID do tipo de manutenção")
     started_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -179,6 +204,7 @@ class EquipmentMaintenanceStart(BaseModel):
 
 class EquipmentMaintenanceComplete(BaseModel):
     """Schema para conclusão de manutenção."""
+
     completed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="Data/hora de conclusão",
@@ -190,6 +216,7 @@ class EquipmentMaintenanceComplete(BaseModel):
 
 class EquipmentMaintenanceUpdate(BaseModel):
     """Schema para edição de manutenção existente."""
+
     maintenance_type_id: int | None = Field(default=None, description="ID do tipo de manutenção")
     started_at: datetime | None = Field(default=None, description="Data/hora de início")
     completed_at: datetime | None = Field(default=None, description="Data/hora de conclusão")
@@ -199,6 +226,7 @@ class EquipmentMaintenanceUpdate(BaseModel):
 
 class EquipmentMaintenanceResponse(BaseModel):
     """Schema de resposta para manutenção."""
+
     id: int
     equipment_id: int
     started_at: datetime
@@ -216,6 +244,7 @@ class EquipmentMaintenanceResponse(BaseModel):
 
 # --- Schemas de Equipamentos (Patrimônio) ---
 
+
 def validate_host_ip(v: str | None) -> str | None:
     if v is None or not str(v).strip():
         return None
@@ -224,7 +253,9 @@ def validate_host_ip(v: str | None) -> str | None:
         try:
             iface = ipaddress.ip_interface(clean)
             if iface.network.prefixlen not in (32, 128):
-                raise ValueError("Endereço IP deve ser de host único (/32 ou /128), sem máscara de sub-rede.")
+                raise ValueError(
+                    "Endereço IP deve ser de host único (/32 ou /128), sem máscara de sub-rede."
+                )
             return str(iface.ip)
         except ValueError as e:
             if "host único" in str(e):
@@ -240,19 +271,28 @@ def validate_host_ip(v: str | None) -> str | None:
 
 class EquipmentCreate(BaseModel):
     """Schema para cadastro de equipamento."""
-    patrimony_number: str = Field(..., min_length=1, description="Nº de Patrimônio (Obrigatório e único)")
+
+    patrimony_number: str = Field(
+        ..., min_length=1, description="Nº de Patrimônio (Obrigatório e único)"
+    )
     equipment_type_id: int = Field(..., description="ID do Tipo de Equipamento")
     sector_id: int = Field(..., description="ID do Setor / Localização")
     status_id: int = Field(..., description="ID da Situação Patrimonial")
     description: str | None = Field(default=None, description="Descrição do equipamento")
-    serial_number: str | None = Field(default=None, description="Nº de Série (Opcional, único se preenchido)")
+    serial_number: str | None = Field(
+        default=None, description="Nº de Série (Opcional, único se preenchido)"
+    )
     hostname: str | None = Field(default=None, description="Hostname (Opcional, único ativo)")
     brand: str | None = Field(default=None, description="Marca")
-    model: str | None = Field(default=None, description="Modelo comercial (substitui product_number)")
+    model: str | None = Field(
+        default=None, description="Modelo comercial (substitui product_number)"
+    )
     ip_address: str | None = Field(default=None, description="Endereço IP de host (/32 ou /128)")
     mac_address: str | None = Field(default=None, description="Endereço MAC")
     printer_identifier: str | None = Field(default=None, description="Identificador de Impressora")
-    windows_product_key: str | None = Field(default=None, description="Chave Windows em texto simples")
+    windows_product_key: str | None = Field(
+        default=None, description="Chave Windows em texto simples"
+    )
     notes: str | None = Field(default=None, description="Observações")
 
     @field_validator("ip_address")
@@ -263,6 +303,7 @@ class EquipmentCreate(BaseModel):
 
 class EquipmentUpdate(BaseModel):
     """Schema para atualização parcial/total de equipamento."""
+
     patrimony_number: str | None = None
     equipment_type_id: int | None = None
     sector_id: int | None = None
@@ -286,6 +327,7 @@ class EquipmentUpdate(BaseModel):
 
 class EquipmentListItemResponse(BaseModel):
     """DTO enxuto para listagem paginada de equipamentos."""
+
     id: int
     patrimony_number: str
     description: str | None = None
@@ -313,12 +355,14 @@ class EquipmentListItemResponse(BaseModel):
 
 class EquipmentResponse(EquipmentListItemResponse):
     """Schema de resposta completo do equipamento com históricos."""
+
     movements: list[EquipmentMovementResponse] = []
     maintenances: list[EquipmentMaintenanceResponse] = []
 
 
 class EquipmentListResponse(BaseModel):
     """Schema para resposta paginada de equipamentos."""
+
     items: list[EquipmentListItemResponse]
     total: int
     page: int
@@ -328,14 +372,17 @@ class EquipmentListResponse(BaseModel):
 
 class EquipmentSecretKeyResponse(BaseModel):
     """DTO específico para retorno da chave de produto do Windows decriptografada."""
+
     equipment_id: int
     windows_product_key: str | None = None
 
 
 # --- Schemas do Dashboard ---
 
+
 class DashboardMetricsResponse(BaseModel):
     """Schema para resposta dos indicadores do Dashboard patrimonial."""
+
     equipments_total: int
     equipments_in_maintenance: int
     equipments_in_use: int
@@ -347,8 +394,10 @@ class DashboardMetricsResponse(BaseModel):
 
 # --- Schemas de Importação de Planilha ---
 
+
 class SpreadsheetRowPreview(BaseModel):
     """Schema representando uma linha na pré-visualização da planilha."""
+
     row_number: int
     equipment_type: str | None = None
     location: str | None = None
@@ -370,6 +419,7 @@ class SpreadsheetRowPreview(BaseModel):
 
 class SpreadsheetImportPreviewResponse(BaseModel):
     """Schema de resposta para pré-visualização da planilha importada."""
+
     filename: str
     total_rows: int
     sample_rows: list[SpreadsheetRowPreview]
@@ -379,6 +429,7 @@ class SpreadsheetImportPreviewResponse(BaseModel):
 
 class SpreadsheetImportResultResponse(BaseModel):
     """Schema de resposta para o resultado final da importação."""
+
     success: bool
     total_rows: int
     created_count: int

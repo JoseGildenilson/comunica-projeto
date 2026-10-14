@@ -13,8 +13,7 @@ class Settings(BaseModel):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 1
     DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql://postgres@localhost:5432/comunica_patrimonio"
+        "DATABASE_URL", "postgresql://postgres@localhost:5432/comunica_patrimonio"
     )
     RATE_LIMIT_MAX_ATTEMPTS: int = 10
     RATE_LIMIT_WINDOW_MINUTES: int = 15

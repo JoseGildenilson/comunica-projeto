@@ -1,4 +1,5 @@
 """Script para popular o banco de dados com dados iniciais (seed) e fictícios para testes."""
+
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from src.core.database import SessionLocal
@@ -33,7 +34,9 @@ def seed_catalogs(db: Session) -> dict:
     """Insere os catálogos padrão no banco de dados se ainda não existirem."""
     types_map = {}
     for name in DEFAULT_TYPES:
-        item = db.query(EquipmentType).filter(func.lower(EquipmentType.name) == name.lower()).first()
+        item = (
+            db.query(EquipmentType).filter(func.lower(EquipmentType.name) == name.lower()).first()
+        )
         if not item:
             item = EquipmentType(name=name)
             db.add(item)
@@ -51,7 +54,11 @@ def seed_catalogs(db: Session) -> dict:
 
     statuses_map = {}
     for name in DEFAULT_STATUSES:
-        item = db.query(EquipmentStatus).filter(func.lower(EquipmentStatus.name) == name.lower()).first()
+        item = (
+            db.query(EquipmentStatus)
+            .filter(func.lower(EquipmentStatus.name) == name.lower())
+            .first()
+        )
         if not item:
             item = EquipmentStatus(name=name)
             db.add(item)
@@ -60,7 +67,11 @@ def seed_catalogs(db: Session) -> dict:
 
     maint_types_map = {}
     for name in DEFAULT_MAINTENANCE_TYPES:
-        item = db.query(MaintenanceType).filter(func.lower(MaintenanceType.name) == name.lower()).first()
+        item = (
+            db.query(MaintenanceType)
+            .filter(func.lower(MaintenanceType.name) == name.lower())
+            .first()
+        )
         if not item:
             item = MaintenanceType(name=name)
             db.add(item)
@@ -108,7 +119,9 @@ def seed_database():
                 status_id=catalogs["statuses"]["Em uso"].id,
                 ip_address="192.168.1.101",
                 mac_address="00:1A:2B:3C:4D:5E",
-                windows_product_key_encrypted=encrypt_windows_product_key("VK9X2-N8Y4R-W3M2T-K7P1Q-L9Z0A"),
+                windows_product_key_encrypted=encrypt_windows_product_key(
+                    "VK9X2-N8Y4R-W3M2T-K7P1Q-L9Z0A"
+                ),
             )
             eq2 = Equipment(
                 description="Monitor LG 29' Ultrawide IPS 75Hz",
@@ -132,7 +145,9 @@ def seed_database():
                 status_id=catalogs["statuses"]["Em uso"].id,
                 ip_address="192.168.1.103",
                 mac_address="00:1A:2B:3C:4D:6F",
-                windows_product_key_encrypted=encrypt_windows_product_key("WM8R9-B2V4C-N5X7Z-K3P1L-J9Q0W"),
+                windows_product_key_encrypted=encrypt_windows_product_key(
+                    "WM8R9-B2V4C-N5X7Z-K3P1L-J9Q0W"
+                ),
             )
             eq4 = Equipment(
                 description="Impressora HP LaserJet Pro M404dw",

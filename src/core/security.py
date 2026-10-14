@@ -158,6 +158,7 @@ def decode_token(token: str) -> Dict[str, Any]:
 
 def _get_fernet():
     from cryptography.fernet import Fernet
+
     key = base64.urlsafe_b64encode(hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).digest())
     return Fernet(key)
 
