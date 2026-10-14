@@ -69,6 +69,6 @@ def test_alembic_migrations_lifecycle(tmp_path):
         if admin_engine:
             from sqlalchemy import text
             with admin_engine.connect() as conn:
-                conn.execute(text("DROP DATABASE IF EXISTS test_migrations_lifecycle;"))
+                conn.execute(text("DROP DATABASE IF EXISTS test_migrations_lifecycle WITH (FORCE);"))
             admin_engine.dispose()
 

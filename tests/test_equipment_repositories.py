@@ -88,6 +88,12 @@ def test_equipment_repository_lookups_and_active_uniqueness(db_session: Session,
 
     assert repo.get_by_serial_number("INEXISTENTE") is None
     assert repo.get_by_serial_number(None) is None
+    assert repo.get_by_patrimony_number(None) is None
+    assert repo.get_by_patrimony_number("") is None
+    assert repo.get_by_hostname(None) is None
+    assert repo.get_by_hostname("") is None
+    assert repo.get_by_hostname("HOST_T480") is not None
+    assert repo.get_by_hostname("INEXISTENTE") is None
     assert repo.get_active_by_hostname(None) is None
     assert repo.get_active_by_ip(None) is None
     assert repo.get_active_by_mac(None) is None
