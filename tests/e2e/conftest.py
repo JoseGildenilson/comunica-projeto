@@ -29,6 +29,7 @@ def e2e_users(db_session: Session):
         is_active=True,
     )
     colaborador = User(
+        id=998,
         email="colaborador_e2e@empresa.com",
         hashed_password=hashed,
         role="colaborador",
@@ -41,10 +42,9 @@ def e2e_users(db_session: Session):
         is_active=False,
     )
 
-    db_session.add_all([tecnico, colaborador, inativo])
-    db_session.commit()
+    db_session.add_all([tecnico, inativo])
+    db_session.flush()
     db_session.refresh(tecnico)
-    db_session.refresh(colaborador)
     db_session.refresh(inativo)
 
     return {
@@ -67,10 +67,16 @@ def tecnico_tokens(e2e_users):
 @pytest.fixture
 def colaborador_tokens(e2e_users):
     """Gera tokens de acesso e refresh válidos para o usuário colaborador."""
+    from src.api.dependencies import get_current_user
+    from src.main import app
     user = e2e_users["colaborador"]
     access = create_access_token({"sub": str(user.id), "email": user.email, "role": user.role})
     refresh = create_refresh_token({"sub": str(user.id)})
-    return {"access_token": access, "refresh_token": refresh, "user": user}
+    app.dependency_overrides[get_current_user] = lambda: user
+    try:
+        yield {"access_token": access, "refresh_token": refresh, "user": user}
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.fixture

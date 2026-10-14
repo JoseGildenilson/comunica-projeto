@@ -9,7 +9,16 @@ from sqlalchemy import create_engine, inspect
 def test_alembic_migrations_lifecycle(tmp_path):
     """Testa o ciclo de vida completo das migrações: upgrade head -> downgrade base -> upgrade head."""
     test_db_url = os.environ.get("TEST_DATABASE_URL")
-    if test_db_url:
+    admin_engine = None
+    if test_db_url and "postgresql" in test_db_url:
+        from sqlalchemy import text
+        admin_url = test_db_url.rsplit("/", 1)[0] + "/postgres"
+        admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+        with admin_engine.connect() as conn:
+            conn.execute(text("DROP DATABASE IF EXISTS test_migrations_lifecycle;"))
+            conn.execute(text("CREATE DATABASE test_migrations_lifecycle;"))
+        db_url = test_db_url.rsplit("/", 1)[0] + "/test_migrations_lifecycle"
+    elif test_db_url:
         db_url = test_db_url
     else:
         db_file = tmp_path / "test_migration.db"
@@ -18,35 +27,48 @@ def test_alembic_migrations_lifecycle(tmp_path):
     cfg = Config("alembic.ini")
     cfg.set_main_option("sqlalchemy.url", db_url)
 
-    # 1. Aplica todas as migrações (upgrade head)
-    command.upgrade(cfg, "head")
+    try:
+        # 1. Aplica todas as migrações (upgrade head)
+        command.upgrade(cfg, "head")
 
-    engine = create_engine(db_url)
-    inspector = inspect(engine)
-    tables = inspector.get_table_names()
-    assert "users" in tables
-    assert "equipments" in tables
-    assert "equipment_tags" in tables
-    assert "equipment_movements" in tables
-    assert "equipment_maintenances" in tables
-    assert "alembic_version" in tables
+        engine = create_engine(db_url)
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+        assert "users" in tables
+        assert "equipments" in tables
+        assert "equipment_types" in tables
+        assert "sectors" in tables
+        assert "equipment_statuses" in tables
+        assert "maintenance_types" in tables
+        assert "equipment_movements" in tables
+        assert "equipment_maintenances" in tables
+        assert "alembic_version" in tables
 
-    # 2. Reverte todas as migrações (downgrade base)
-    command.downgrade(cfg, "base")
+        # 2. Reverte todas as migrações (downgrade base)
+        command.downgrade(cfg, "base")
 
-    inspector = inspect(engine)
-    remaining_tables = [t for t in inspector.get_table_names() if t != "alembic_version"]
-    assert len(remaining_tables) == 0
+        inspector = inspect(engine)
+        remaining_tables = [t for t in inspector.get_table_names() if t != "alembic_version"]
+        assert len(remaining_tables) == 0
 
-    # 3. Reaplica todas as migrações (upgrade head)
-    command.upgrade(cfg, "head")
+        # 3. Reaplica todas as migrações (upgrade head)
+        command.upgrade(cfg, "head")
 
-    inspector = inspect(engine)
-    reapplied_tables = inspector.get_table_names()
-    assert "users" in reapplied_tables
-    assert "equipments" in reapplied_tables
-    assert "equipment_tags" in reapplied_tables
-    assert "equipment_movements" in reapplied_tables
-    assert "equipment_maintenances" in reapplied_tables
-    engine.dispose()
+        inspector = inspect(engine)
+        reapplied_tables = inspector.get_table_names()
+        assert "users" in reapplied_tables
+        assert "equipments" in reapplied_tables
+        assert "equipment_types" in reapplied_tables
+        assert "sectors" in reapplied_tables
+        assert "equipment_statuses" in reapplied_tables
+        assert "maintenance_types" in reapplied_tables
+        assert "equipment_movements" in reapplied_tables
+        assert "equipment_maintenances" in reapplied_tables
+        engine.dispose()
+    finally:
+        if admin_engine:
+            from sqlalchemy import text
+            with admin_engine.connect() as conn:
+                conn.execute(text("DROP DATABASE IF EXISTS test_migrations_lifecycle;"))
+            admin_engine.dispose()
 
