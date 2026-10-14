@@ -1,5 +1,4 @@
 """Utilitário para leitura, parsing e sanitização de planilhas de equipamentos (.xlsx / .csv)."""
-
 import csv
 import io
 import re
@@ -13,7 +12,6 @@ import openpyxl
 @dataclass
 class ParsedSpreadsheetRow:
     """Representação estruturada de uma linha de equipamento parseada."""
-
     row_number: int
     equipment_type: str
     location: str
@@ -23,7 +21,11 @@ class ParsedSpreadsheetRow:
     serial_number: str | None = None
     brand: str | None = None
     hostname: str | None = None
+    model: str | None = None
     product_number: str | None = None
+    ip_address: str | None = None
+    mac_address: str | None = None
+    printer_identifier: str | None = None
     windows_key: str | None = None
     last_maintenance_at: datetime | None = None
     hist_mov: str | None = None
@@ -33,7 +35,6 @@ class ParsedSpreadsheetRow:
 @dataclass
 class ParsedSpreadsheet:
     """Resultado do parsing completo da planilha."""
-
     filename: str
     detected_sheet: str | None
     headers: list[str]
@@ -45,10 +46,8 @@ def _normalize_header(header: str | None) -> str:
     if not header:
         return ""
     text = str(header).strip().lower()
-    # Remove acentos
     text = unicodedata.normalize("NFKD", text)
     text = "".join(c for c in text if not unicodedata.combining(c))
-    # Remove caracteres que não sejam alfanuméricos
     text = re.sub(r"[^a-z0-9]", "", text)
     return text
 
@@ -61,42 +60,17 @@ def _map_headers(raw_headers: list[Any]) -> dict[str, int]:
         "equipment_type": ["tipo", "tipodeequipamento", "categoria"],
         "location": ["localizacao", "local", "setor", "unidade"],
         "status": ["situacao", "status", "estado"],
-        "description": ["descricao", "especificacao", "equipamento", "modelo"],
-        "patrimony_number": [
-            "npatrimonio",
-            "nopatrimonio",
-            "numeropatrimonio",
-            "patrimonio",
-            "tombo",
-            "ntombo",
-            "notombo",
-        ],
-        "serial_number": [
-            "nserie",
-            "noserie",
-            "numeroserie",
-            "serie",
-            "serial",
-            "serialnumber",
-            "ns",
-        ],
+        "description": ["descricao", "especificacao", "equipamento"],
+        "patrimony_number": ["npatrimonio", "nopatrimonio", "numeropatrimonio", "patrimonio", "tombo", "ntombo", "notombo"],
+        "serial_number": ["nserie", "noserie", "numeroserie", "serie", "serial", "serialnumber", "ns"],
         "brand": ["marca", "fabricante"],
-        "last_maintenance_at": [
-            "ultimamanutencao",
-            "datamanutencao",
-            "manutencao",
-            "ultimaintervencao",
-        ],
+        "model": ["modelo", "model", "nproduto", "noproduto", "numeroproduto", "pn", "partnumber", "produto"],
+        "ip_address": ["ip", "ipaddress", "enderecoip", "ipv4"],
+        "mac_address": ["mac", "macaddress", "enderecomac"],
+        "printer_identifier": ["identificadorimpressora", "idimpressora", "impressoraid"],
+        "last_maintenance_at": ["ultimamanutencao", "datamanutencao", "manutencao", "ultimaintervencao"],
         "windows_key": ["chavewindows", "licencawindows", "chave", "licenca", "windowskey"],
-        "product_number": ["nproduto", "noproduto", "numeroproduto", "pn", "partnumber", "produto"],
-        "hist_mov": [
-            "historicodemovimentacoes",
-            "historicodemovimentacao",
-            "historicomovimentacoes",
-            "historico",
-            "movimentacoes",
-            "intervencoes",
-        ],
+        "hist_mov": ["historicodemovimentacoes", "historicodemovimentacao", "historicomovimentacoes", "historico", "movimentacoes", "intervencoes"],
         "hostname": ["hostname", "host", "nomered"],
         "notes": ["observacoes", "observacao", "obs", "comentarios", "notas"],
     }
@@ -186,7 +160,6 @@ def _parse_excel(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
     if not wb.sheetnames:
         raise ValueError("A planilha Excel não contém abas.")
 
-    # Procura aba 'Patrimônio' prioritariamente
     target_sheet_name = wb.sheetnames[0]
     for s_name in wb.sheetnames:
         norm_s = _normalize_header(s_name)
@@ -226,7 +199,10 @@ def _parse_excel(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
         ser = _clean_str(get_val("serial_number"))
         brand = _clean_str(get_val("brand"))
         host = _clean_str(get_val("hostname"))
-        prod_num = _clean_str(get_val("product_number"))
+        model = _clean_str(get_val("model"))
+        ip_addr = _clean_str(get_val("ip_address"))
+        mac_addr = _clean_str(get_val("mac_address"))
+        printer_id = _clean_str(get_val("printer_identifier"))
         win_key = _clean_str(get_val("windows_key"))
         last_maint = _parse_datetime(get_val("last_maintenance_at"))
         hist_mov = _clean_str(get_val("hist_mov"))
@@ -243,7 +219,11 @@ def _parse_excel(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
                 serial_number=ser,
                 brand=brand,
                 hostname=host,
-                product_number=prod_num,
+                model=model,
+                product_number=model,
+                ip_address=ip_addr,
+                mac_address=mac_addr,
+                printer_identifier=printer_id,
                 windows_key=win_key,
                 last_maintenance_at=last_maint,
                 hist_mov=hist_mov,
@@ -261,7 +241,6 @@ def _parse_excel(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
 
 def _parse_csv(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
     """Faz o parsing de um arquivo CSV com detecção de encoding e delimitador."""
-    # Tenta decodificar usando utf-8-sig, utf-8, latin-1
     content_str: str | None = None
     for enc in ["utf-8-sig", "utf-8", "latin-1", "cp1252"]:
         try:
@@ -277,7 +256,6 @@ def _parse_csv(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
     if not lines:
         raise ValueError("O arquivo CSV está vazio.")
 
-    # Detecta delimitador
     sample = "\n".join(lines[:5])
     try:
         dialect = csv.Sniffer().sniff(sample, delimiters=";,|\t,")
@@ -310,7 +288,10 @@ def _parse_csv(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
         ser = _clean_str(get_val("serial_number"))
         brand = _clean_str(get_val("brand"))
         host = _clean_str(get_val("hostname"))
-        prod_num = _clean_str(get_val("product_number"))
+        model = _clean_str(get_val("model"))
+        ip_addr = _clean_str(get_val("ip_address"))
+        mac_addr = _clean_str(get_val("mac_address"))
+        printer_id = _clean_str(get_val("printer_identifier"))
         win_key = _clean_str(get_val("windows_key"))
         last_maint = _parse_datetime(get_val("last_maintenance_at"))
         hist_mov = _clean_str(get_val("hist_mov"))
@@ -327,7 +308,11 @@ def _parse_csv(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
                 serial_number=ser,
                 brand=brand,
                 hostname=host,
-                product_number=prod_num,
+                model=model,
+                product_number=model,
+                ip_address=ip_addr,
+                mac_address=mac_addr,
+                printer_identifier=printer_id,
                 windows_key=win_key,
                 last_maintenance_at=last_maint,
                 hist_mov=hist_mov,

@@ -2,16 +2,16 @@
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-
-# pyrefly: ignore [missing-import]
 from src.api.routes import router as auth_router
-
-# pyrefly: ignore [missing-import]
 from src.api.dashboard_routes import router as dashboard_router
-
-# pyrefly: ignore [missing-import]
 from src.api.equipment_routes import router as equipment_router
 from src.api.import_routes import router as import_router
+from src.api.catalog_routes import (
+    equipment_types_router,
+    sectors_router,
+    equipment_statuses_router,
+    maintenance_types_router,
+)
 from src.core.config import settings
 from src.core.database import Base, engine
 
@@ -35,6 +35,10 @@ app.include_router(auth_router)
 app.include_router(dashboard_router)
 app.include_router(equipment_router)
 app.include_router(import_router)
+app.include_router(equipment_types_router)
+app.include_router(sectors_router)
+app.include_router(equipment_statuses_router)
+app.include_router(maintenance_types_router)
 
 
 @app.get("/health", tags=["Health"])

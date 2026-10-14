@@ -106,7 +106,7 @@ def test_parse_excel_valid():
         None, "LG", "01/05/2021", None,
         None, None, None, None
     ]
-    blank_row = [None, None, None, None, None, None, None, None, None, None, None, None, None]
+    blank_row = ["", "   ", None, None, None, None, None, None, None, None, None, None, None]
 
     excel_bytes = create_mock_excel(
         sheet_name="Ativos Patrimônio",
@@ -205,6 +205,14 @@ def test_parse_csv_no_headers():
         spreadsheet_parser._parse_csv(b"\n\n", "teste.csv")
 
 
+def test_parse_csv_sniffer_fallback():
+    # CSV sem separador claro onde o Sniffer falha e cai no fallback
+    content = "TIPO\nNOTEBOOK\n"
+    parsed = parse_spreadsheet(content.encode("utf-8"), "fallback.csv")
+    assert len(parsed.rows) == 1
+    assert parsed.rows[0].equipment_type == "NOTEBOOK"
+
+
 def test_parse_csv_sniffer_fallback_single_column_comma():
     csv_content = (
         "TIPO DE EQUIPAMENTO\n"
@@ -244,5 +252,3 @@ def test_parse_excel_partial_headers_and_short_row():
     assert parsed.rows[0].equipment_type == "NOTEBOOK"
     assert parsed.rows[0].location == "GERAL"
     assert parsed.rows[0].patrimony_number is None
-
-

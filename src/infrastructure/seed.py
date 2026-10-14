@@ -1,55 +1,88 @@
 """Script para popular o banco de dados com dados iniciais (seed) e fictícios para testes."""
-
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from src.core.database import SessionLocal
-from src.core.security import hash_password
-from src.domain.models import User, Equipment, EquipmentTag, Ticket
+from src.core.security import hash_password, encrypt_windows_product_key
+from src.domain.models import (
+    User,
+    Equipment,
+    EquipmentType,
+    Sector,
+    EquipmentStatus,
+    MaintenanceType,
+    EquipmentMovement,
+    EquipmentMaintenance,
+)
 
-DEFAULT_TAGS = [
-    # Tipos
-    ("tipo", "Desktop"),
-    ("tipo", "Notebook"),
-    ("tipo", "Monitor"),
-    ("tipo", "Impressora"),
-    # Localizações
-    ("localizacao", "TI"),
-    ("localizacao", "Comunicação"),
-    ("localizacao", "Rádio Produção"),
-    ("localizacao", "Diretoria"),
-    # Situações
-    ("situacao", "Em uso"),
-    ("situacao", "Ocioso"),
-    ("situacao", "Em manutenção"),
-    ("situacao", "Aguardando recolhimento"),
-    ("situacao", "Baixado"),
+DEFAULT_TYPES = ["Desktop", "Notebook", "Monitor", "Impressora"]
+DEFAULT_SECTORS = ["TI", "Comunicação", "Rádio Produção", "Diretoria", "Almoxarifado"]
+DEFAULT_STATUSES = [
+    "Em uso",
+    "Em manutenção",
+    "Baixado",
+    "Ocioso",
+    "Aguardando recolhimento",
+    "Alienação",
+    "Exposição",
+    "Acautelado",
 ]
+DEFAULT_MAINTENANCE_TYPES = ["Preventiva", "Corretiva"]
 
 
-def seed_default_tags(db: Session) -> list[EquipmentTag]:
-    """Insere as tags padrão no banco de dados se ainda não existirem."""
-    created_tags = []
-    for category, name in DEFAULT_TAGS:
-        existing = (
-            db.query(EquipmentTag)
-            .filter(EquipmentTag.category == category, EquipmentTag.name == name)
-            .first()
-        )
-        if not existing:
-            tag = EquipmentTag(category=category, name=name)
-            db.add(tag)
-            created_tags.append(tag)
-    if created_tags:
-        db.flush()
-    return created_tags
+def seed_catalogs(db: Session) -> dict:
+    """Insere os catálogos padrão no banco de dados se ainda não existirem."""
+    types_map = {}
+    for name in DEFAULT_TYPES:
+        item = db.query(EquipmentType).filter(func.lower(EquipmentType.name) == name.lower()).first()
+        if not item:
+            item = EquipmentType(name=name)
+            db.add(item)
+            db.flush()
+        types_map[name] = item
+
+    sectors_map = {}
+    for name in DEFAULT_SECTORS:
+        item = db.query(Sector).filter(func.lower(Sector.name) == name.lower()).first()
+        if not item:
+            item = Sector(name=name)
+            db.add(item)
+            db.flush()
+        sectors_map[name] = item
+
+    statuses_map = {}
+    for name in DEFAULT_STATUSES:
+        item = db.query(EquipmentStatus).filter(func.lower(EquipmentStatus.name) == name.lower()).first()
+        if not item:
+            item = EquipmentStatus(name=name)
+            db.add(item)
+            db.flush()
+        statuses_map[name] = item
+
+    maint_types_map = {}
+    for name in DEFAULT_MAINTENANCE_TYPES:
+        item = db.query(MaintenanceType).filter(func.lower(MaintenanceType.name) == name.lower()).first()
+        if not item:
+            item = MaintenanceType(name=name)
+            db.add(item)
+            db.flush()
+        maint_types_map[name] = item
+
+    return {
+        "types": types_map,
+        "sectors": sectors_map,
+        "statuses": statuses_map,
+        "maintenance_types": maint_types_map,
+    }
 
 
 def seed_database():
     """Insere dados fictícios no banco de dados se ainda não existirem."""
     db = SessionLocal()
     try:
-        # Seed tags primeiro
-        seed_default_tags(db)
+        # Seed catálogos
+        catalogs = seed_catalogs(db)
 
+        # Seed técnico
         tecnico = db.query(User).filter(User.email == "tecnico@empresa.com").first()
         if not tecnico:
             tecnico = User(
@@ -59,92 +92,81 @@ def seed_database():
                 is_active=True,
             )
             db.add(tecnico)
-
-        colaborador = db.query(User).filter(User.email == "colaborador@empresa.com").first()
-        if not colaborador:
-            colaborador = User(
-                email="colaborador@empresa.com",
-                hashed_password=hash_password("senha123"),
-                role="colaborador",
-                is_active=True,
-            )
-            db.add(colaborador)
-
-        db.flush()
+            db.flush()
 
         # Equipamentos
         if db.query(Equipment).count() == 0:
-            equipments = [
-                Equipment(
-                    description="Notebook Dell Latitude 3420 Core i5, 16GB RAM",
-                    serial_number="SN-DELL-3420",
-                    patrimony_number="PAT-1001",
-                    hostname="NOTE-TI-01",
-                    brand="Dell",
-                    equipment_type="Notebook",
-                    location="TI",
-                    status="Em uso",
-                ),
-                Equipment(
-                    description="Monitor LG 29' Ultrawide IPS 75Hz",
-                    serial_number="SN-LG-29-001",
-                    patrimony_number="PAT-1002",
-                    brand="LG",
-                    equipment_type="Monitor",
-                    location="Comunicação",
-                    status="Ocioso",
-                ),
-                Equipment(
-                    description="Desktop OptiPlex 7090",
-                    serial_number="SN-DELL-7090",
-                    patrimony_number="PAT-1003",
-                    hostname="DESK-RADIO-01",
-                    brand="Dell",
-                    equipment_type="Desktop",
-                    location="Rádio Produção",
-                    status="Em uso",
-                ),
-                Equipment(
-                    description="MacBook Pro M2 14' 16GB RAM",
-                    serial_number="SN-MAC-M2-01",
-                    patrimony_number="PAT-1004",
-                    brand="Apple",
-                    equipment_type="Notebook",
-                    location="Diretoria",
-                    status="Em manutenção",
-                ),
-            ]
-            db.add_all(equipments)
+            eq1 = Equipment(
+                description="Notebook Dell Latitude 3420 Core i5, 16GB RAM",
+                serial_number="SN-DELL-3420",
+                patrimony_number="PAT-1001",
+                hostname="note-ti-01",
+                brand="Dell",
+                model="Latitude 3420",
+                equipment_type_id=catalogs["types"]["Notebook"].id,
+                sector_id=catalogs["sectors"]["TI"].id,
+                status_id=catalogs["statuses"]["Em uso"].id,
+                ip_address="192.168.1.101",
+                mac_address="00:1A:2B:3C:4D:5E",
+                windows_product_key_encrypted=encrypt_windows_product_key("VK9X2-N8Y4R-W3M2T-K7P1Q-L9Z0A"),
+            )
+            eq2 = Equipment(
+                description="Monitor LG 29' Ultrawide IPS 75Hz",
+                serial_number="SN-LG-29-001",
+                patrimony_number="PAT-1002",
+                brand="LG",
+                model="29WK600",
+                equipment_type_id=catalogs["types"]["Monitor"].id,
+                sector_id=catalogs["sectors"]["Comunicação"].id,
+                status_id=catalogs["statuses"]["Ocioso"].id,
+            )
+            eq3 = Equipment(
+                description="Desktop OptiPlex 7090",
+                serial_number="SN-DELL-7090",
+                patrimony_number="PAT-1003",
+                hostname="desk-radio-01",
+                brand="Dell",
+                model="OptiPlex 7090",
+                equipment_type_id=catalogs["types"]["Desktop"].id,
+                sector_id=catalogs["sectors"]["Rádio Produção"].id,
+                status_id=catalogs["statuses"]["Em uso"].id,
+                ip_address="192.168.1.103",
+                mac_address="00:1A:2B:3C:4D:6F",
+                windows_product_key_encrypted=encrypt_windows_product_key("WM8R9-B2V4C-N5X7Z-K3P1L-J9Q0W"),
+            )
+            eq4 = Equipment(
+                description="Impressora HP LaserJet Pro M404dw",
+                serial_number="SN-HP-M404DW",
+                patrimony_number="PAT-1004",
+                brand="HP",
+                model="LaserJet Pro M404dw",
+                printer_identifier="PRN-TI-01",
+                equipment_type_id=catalogs["types"]["Impressora"].id,
+                sector_id=catalogs["sectors"]["TI"].id,
+                status_id=catalogs["statuses"]["Em manutenção"].id,
+                ip_address="192.168.1.104",
+            )
+            db.add_all([eq1, eq2, eq3, eq4])
+            db.flush()
 
-        # Tickets
-        if db.query(Ticket).count() == 0:
-            tickets = [
-                Ticket(
-                    title="Troca de teclado quebrada",
-                    description="Tecla barra de espaço afundou",
-                    status="pendente",
-                    created_by_id=colaborador.id,
-                ),
-                Ticket(
-                    title="Lente do monitor piscando",
-                    description="Pisca aleatoriamente durante o dia",
-                    status="em_andamento",
-                    created_by_id=colaborador.id,
-                ),
-                Ticket(
-                    title="Upgrade de memória ram",
-                    description="Solicitação de +16GB para virtualização",
-                    status="pendente",
-                    created_by_id=tecnico.id,
-                ),
-                Ticket(
-                    title="Instalação de software VPN",
-                    description="Necessário para home office",
-                    status="resolvido",
-                    created_by_id=colaborador.id,
-                ),
-            ]
-            db.add_all(tickets)
+            # Histórico de transferências para eq1: Almoxarifado -> TI
+            mov = EquipmentMovement(
+                equipment_id=eq1.id,
+                origin_sector_id=catalogs["sectors"]["Almoxarifado"].id,
+                destination_sector_id=catalogs["sectors"]["TI"].id,
+                performed_by_user_id=tecnico.id,
+                notes="Alocação inicial",
+            )
+            db.add(mov)
+
+            # Manutenção para eq4 (Em manutenção)
+            maint = EquipmentMaintenance(
+                equipment_id=eq4.id,
+                maintenance_type_id=catalogs["maintenance_types"]["Corretiva"].id,
+                performed_by_user_id=tecnico.id,
+                description="Troca de fusor danificado",
+            )
+            db.add(maint)
 
         db.commit()
         print("Banco de dados semeado com sucesso!")

@@ -1,30 +1,31 @@
 """Schemas Pydantic para validação e transporte de dados (DTOs)."""
+import ipaddress
+from datetime import datetime, timezone
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from datetime import datetime
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+# --- Schemas de Usuários e Autenticação ---
 
 class LoginRequest(BaseModel):
     """Schema para requisição de login."""
-
     email: EmailStr = Field(..., description="Endereço de email do usuário")
     password: str = Field(..., min_length=1, description="Senha do usuário")
 
 
 class UserResponse(BaseModel):
     """Schema de resposta representando os dados públicos do usuário."""
-
     id: int
     email: str
     role: str
     is_active: bool
+    created_at: datetime | None = None
+    deleted_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class TokenResponse(BaseModel):
     """Schema para resposta de autenticação com token."""
-
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
@@ -32,185 +33,322 @@ class TokenResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     """Schema genérico para respostas de mensagem ou erro."""
-
     message: str
 
 
-class DashboardMetricsResponse(BaseModel):
-    """Schema para resposta dos indicadores do Dashboard."""
-
-    tickets_pending: int
-    tickets_in_progress: int
-    equipments_total: int | None = None
-
-
-# --- Schemas de Equipamentos (Patrimônio) ---
-
-
-class EquipmentTagCreate(BaseModel):
-    """Schema para criação de nova Tag."""
-
-    category: str = Field(
-        ..., min_length=1, description="Categoria: 'tipo', 'localizacao' ou 'situacao'"
-    )
-    name: str = Field(..., min_length=1, description="Nome da tag")
-
-
-class EquipmentTagResponse(BaseModel):
-    """Schema de resposta para Tag."""
-
+class LoginAttemptResponse(BaseModel):
+    """Schema para resposta de tentativa de login (auditoria)."""
     id: int
-    category: str
-    name: str
-    created_at: datetime
+    email_attempted: str
+    ip_address: str
+    attempted_at: datetime
+    success: bool
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class EquipmentTagUpdate(BaseModel):
-    """Schema para atualização/renomeação de Tag."""
+# --- Schemas de Catálogos Estruturais ---
 
-    name: str = Field(..., min_length=1, description="Novo nome da tag")
+class CatalogItemCreate(BaseModel):
+    """Schema base para criação de item de catálogo."""
+    name: str = Field(..., min_length=1, description="Nome padronizado do item de catálogo")
 
+    @field_validator("name")
+    @classmethod
+    def strip_and_validate_name(cls, v: str) -> str:
+        clean = v.strip()
+        if not clean:
+            raise ValueError("O nome do item não pode ser vazio.")
+        return clean
+
+
+class CatalogItemUpdate(BaseModel):
+    """Schema base para atualização de item de catálogo."""
+    name: str = Field(..., min_length=1, description="Novo nome do item de catálogo")
+
+    @field_validator("name")
+    @classmethod
+    def strip_and_validate_name(cls, v: str) -> str:
+        clean = v.strip()
+        if not clean:
+            raise ValueError("O nome do item não pode ser vazio.")
+        return clean
+
+
+class CatalogItemResponse(BaseModel):
+    """Schema base de resposta para item de catálogo."""
+    id: int
+    name: str
+    created_at: datetime
+    deleted_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Tipos específicos para cada catálogo
+class EquipmentTypeCreate(CatalogItemCreate):
+    pass
+
+class EquipmentTypeUpdate(CatalogItemUpdate):
+    pass
+
+class EquipmentTypeResponse(CatalogItemResponse):
+    pass
+
+
+class SectorCreate(CatalogItemCreate):
+    pass
+
+class SectorUpdate(CatalogItemUpdate):
+    pass
+
+class SectorResponse(CatalogItemResponse):
+    pass
+
+
+class EquipmentStatusCreate(CatalogItemCreate):
+    pass
+
+class EquipmentStatusUpdate(CatalogItemUpdate):
+    pass
+
+class EquipmentStatusResponse(CatalogItemResponse):
+    pass
+
+
+class MaintenanceTypeCreate(CatalogItemCreate):
+    pass
+
+class MaintenanceTypeUpdate(CatalogItemUpdate):
+    pass
+
+class MaintenanceTypeResponse(CatalogItemResponse):
+    pass
+
+
+# --- Schemas de Movimentação ---
 
 class EquipmentMovementCreate(BaseModel):
-    """Schema para registro de movimentação de localização."""
+    """Schema para registro de movimentação de localização/setor."""
+    origin_sector_id: int = Field(..., description="ID do setor de origem")
+    destination_sector_id: int = Field(..., description="ID do setor de destino")
+    movement_date: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Data da movimentação",
+    )
+    notes: str | None = Field(default=None, description="Observação opcional")
 
-    origin_location: str = Field(..., min_length=1, description="Localização de origem")
-    destination_location: str = Field(..., min_length=1, description="Localização de destino")
-    movement_date: datetime = Field(..., description="Data da movimentação")
+
+class EquipmentMovementUpdate(BaseModel):
+    """Schema para alteração de movimentação."""
+    origin_sector_id: int | None = Field(default=None, description="ID do setor de origem")
+    destination_sector_id: int | None = Field(default=None, description="ID do setor de destino")
+    movement_date: datetime | None = Field(default=None, description="Data da movimentação")
     notes: str | None = Field(default=None, description="Observação opcional")
 
 
 class EquipmentMovementResponse(BaseModel):
     """Schema de resposta para movimentação."""
-
     id: int
     equipment_id: int
-    origin_location: str
-    destination_location: str
+    origin_sector_id: int
+    origin_sector: SectorResponse | None = None
+    destination_sector_id: int
+    destination_sector: SectorResponse | None = None
     movement_date: datetime
+    performed_by_user_id: int
     notes: str | None = None
     created_at: datetime
+    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class EquipmentMaintenanceCreate(BaseModel):
-    """Schema para registro de manutenção."""
+# --- Schemas de Manutenção ---
 
-    maintenance_date: datetime = Field(..., description="Data da manutenção")
-    maintenance_type: str = Field(default="Manutenção", description="Tipo ou título da manutenção")
-    description: str = Field(
-        ..., min_length=1, description="Descrição ou lista de itens da intervenção"
+class EquipmentMaintenanceStart(BaseModel):
+    """Schema para início de manutenção."""
+    maintenance_type_id: int = Field(..., description="ID do tipo de manutenção")
+    started_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Data/hora de início",
     )
+    description: str | None = Field(default=None, description="Descrição da intervenção")
     notes: str | None = Field(default=None, description="Observações técnicas adicionais")
+
+
+class EquipmentMaintenanceComplete(BaseModel):
+    """Schema para conclusão de manutenção."""
+    completed_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Data/hora de conclusão",
+    )
+    new_status_id: int = Field(..., description="Nova situação patrimonial do equipamento")
+    description: str | None = Field(default=None, description="Descrição final da intervenção")
+    notes: str | None = Field(default=None, description="Observações finais")
 
 
 class EquipmentMaintenanceUpdate(BaseModel):
-    """Schema para edição de manutenção."""
-
-    maintenance_date: datetime | None = Field(default=None, description="Data da manutenção")
-    maintenance_type: str | None = Field(default=None, description="Tipo ou título da manutenção")
-    description: str | None = Field(
-        default=None, description="Descrição ou lista de itens da intervenção"
-    )
-    notes: str | None = Field(default=None, description="Observações técnicas adicionais")
+    """Schema para edição de manutenção existente."""
+    maintenance_type_id: int | None = Field(default=None, description="ID do tipo de manutenção")
+    started_at: datetime | None = Field(default=None, description="Data/hora de início")
+    completed_at: datetime | None = Field(default=None, description="Data/hora de conclusão")
+    description: str | None = Field(default=None, description="Descrição da intervenção")
+    notes: str | None = Field(default=None, description="Observações técnicas")
 
 
 class EquipmentMaintenanceResponse(BaseModel):
     """Schema de resposta para manutenção."""
-
     id: int
     equipment_id: int
-    maintenance_date: datetime
-    maintenance_type: str
-    description: str
+    started_at: datetime
+    completed_at: datetime | None = None
+    maintenance_type_id: int
+    maintenance_type: MaintenanceTypeResponse | None = None
+    performed_by_user_id: int | None = None
+    description: str | None = None
     notes: str | None = None
     created_at: datetime
+    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# --- Schemas de Equipamentos (Patrimônio) ---
+
+def validate_host_ip(v: str | None) -> str | None:
+    if v is None or not str(v).strip():
+        return None
+    clean = str(v).strip()
+    if "/" in clean:
+        try:
+            iface = ipaddress.ip_interface(clean)
+            if iface.network.prefixlen not in (32, 128):
+                raise ValueError("Endereço IP deve ser de host único (/32 ou /128), sem máscara de sub-rede.")
+            return str(iface.ip)
+        except ValueError as e:
+            if "host único" in str(e):
+                raise
+            raise ValueError(f"Endereço IP inválido: {clean}") from e
+    else:
+        try:
+            ipaddress.ip_address(clean)
+            return clean
+        except ValueError as e:
+            raise ValueError(f"Endereço IP inválido: {clean}") from e
 
 
 class EquipmentCreate(BaseModel):
     """Schema para cadastro de equipamento."""
-
-    serial_number: str | None = Field(
-        default=None, description="Nº de Série (Opcional, único se preenchido)"
-    )
-    description: str = Field(..., min_length=1, description="Descrição do equipamento")
-    equipment_type: str = Field(..., min_length=1, description="Tipo (Tag)")
-    location: str = Field(..., min_length=1, description="Localização (Tag)")
-    status: str = Field(default="Em uso", min_length=1, description="Situação (Tag)")
-    patrimony_number: str | None = Field(
-        default=None, description="Nº de Patrimônio (Opcional, mas único)"
-    )
-    hostname: str | None = Field(default=None, description="Hostname (Opcional, mas único)")
+    patrimony_number: str = Field(..., min_length=1, description="Nº de Patrimônio (Obrigatório e único)")
+    equipment_type_id: int = Field(..., description="ID do Tipo de Equipamento")
+    sector_id: int = Field(..., description="ID do Setor / Localização")
+    status_id: int = Field(..., description="ID da Situação Patrimonial")
+    description: str | None = Field(default=None, description="Descrição do equipamento")
+    serial_number: str | None = Field(default=None, description="Nº de Série (Opcional, único se preenchido)")
+    hostname: str | None = Field(default=None, description="Hostname (Opcional, único ativo)")
     brand: str | None = Field(default=None, description="Marca")
-    product_number: str | None = Field(default=None, description="Nº do Produto")
-    windows_key: str | None = Field(default=None, description="Chave Windows")
-    last_maintenance_at: datetime | None = Field(
-        default=None, description="Data da última manutenção"
-    )
+    model: str | None = Field(default=None, description="Modelo comercial (substitui product_number)")
+    ip_address: str | None = Field(default=None, description="Endereço IP de host (/32 ou /128)")
+    mac_address: str | None = Field(default=None, description="Endereço MAC")
+    printer_identifier: str | None = Field(default=None, description="Identificador de Impressora")
+    windows_product_key: str | None = Field(default=None, description="Chave Windows em texto simples")
     notes: str | None = Field(default=None, description="Observações")
+
+    @field_validator("ip_address")
+    @classmethod
+    def validate_ip(cls, v: str | None) -> str | None:
+        return validate_host_ip(v)
 
 
 class EquipmentUpdate(BaseModel):
     """Schema para atualização parcial/total de equipamento."""
-
-    serial_number: str | None = None
-    description: str | None = None
-    equipment_type: str | None = None
-    location: str | None = None
-    status: str | None = None
     patrimony_number: str | None = None
+    equipment_type_id: int | None = None
+    sector_id: int | None = None
+    status_id: int | None = None
+    description: str | None = None
+    serial_number: str | None = None
     hostname: str | None = None
     brand: str | None = None
-    product_number: str | None = None
-    windows_key: str | None = None
-    last_maintenance_at: datetime | None = None
+    model: str | None = None
+    ip_address: str | None = None
+    mac_address: str | None = None
+    printer_identifier: str | None = None
+    windows_product_key: str | None = None
     notes: str | None = None
 
+    @field_validator("ip_address")
+    @classmethod
+    def validate_ip(cls, v: str | None) -> str | None:
+        return validate_host_ip(v)
 
-class EquipmentResponse(BaseModel):
-    """Schema de resposta completo do equipamento."""
 
+class EquipmentListItemResponse(BaseModel):
+    """DTO enxuto para listagem paginada de equipamentos."""
     id: int
+    patrimony_number: str
+    description: str | None = None
     serial_number: str | None = None
-    patrimony_number: str | None = None
     hostname: str | None = None
-    description: str
     brand: str | None = None
-    product_number: str | None = None
-    equipment_type: str
-    location: str
-    status: str
-    windows_key: str | None = None
-    last_maintenance_at: datetime | None = None
+    model: str | None = None
+    equipment_type_id: int
+    equipment_type: EquipmentTypeResponse
+    sector_id: int
+    sector: SectorResponse
+    status_id: int
+    status: EquipmentStatusResponse
+    ip_address: str | None = None
+    mac_address: str | None = None
+    printer_identifier: str | None = None
+    windows_product_key: str | None = None
     notes: str | None = None
     created_at: datetime
-    movements: list[EquipmentMovementResponse] = []
-    maintenances: list[EquipmentMaintenanceResponse] = []
+    updated_at: datetime
+    deleted_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
+class EquipmentResponse(EquipmentListItemResponse):
+    """Schema de resposta completo do equipamento com históricos."""
+    movements: list[EquipmentMovementResponse] = []
+    maintenances: list[EquipmentMaintenanceResponse] = []
+
+
 class EquipmentListResponse(BaseModel):
     """Schema para resposta paginada de equipamentos."""
-
-    items: list[EquipmentResponse]
+    items: list[EquipmentListItemResponse]
     total: int
     page: int
     limit: int
     pages: int
 
 
-# --- Schemas de Importação de Planilha ---
+class EquipmentSecretKeyResponse(BaseModel):
+    """DTO específico para retorno da chave de produto do Windows decriptografada."""
+    equipment_id: int
+    windows_product_key: str | None = None
 
+
+# --- Schemas do Dashboard ---
+
+class DashboardMetricsResponse(BaseModel):
+    """Schema para resposta dos indicadores do Dashboard patrimonial."""
+    equipments_total: int
+    equipments_in_maintenance: int
+    equipments_in_use: int
+    equipments_idle: int
+    by_status: dict[str, int] = {}
+    by_type: dict[str, int] = {}
+    by_sector: dict[str, int] = {}
+
+
+# --- Schemas de Importação de Planilha ---
 
 class SpreadsheetRowPreview(BaseModel):
     """Schema representando uma linha na pré-visualização da planilha."""
-
     row_number: int
     equipment_type: str | None = None
     location: str | None = None
@@ -219,9 +357,12 @@ class SpreadsheetRowPreview(BaseModel):
     patrimony_number: str | None = None
     serial_number: str | None = None
     brand: str | None = None
-    last_maintenance_at: str | None = None
+    model: str | None = None
+    ip_address: str | None = None
+    mac_address: str | None = None
+    printer_identifier: str | None = None
     windows_key: str | None = None
-    product_number: str | None = None
+    last_maintenance_at: str | None = None
     hist_mov: str | None = None
     hostname: str | None = None
     notes: str | None = None
@@ -229,7 +370,6 @@ class SpreadsheetRowPreview(BaseModel):
 
 class SpreadsheetImportPreviewResponse(BaseModel):
     """Schema de resposta para pré-visualização da planilha importada."""
-
     filename: str
     total_rows: int
     sample_rows: list[SpreadsheetRowPreview]
@@ -239,12 +379,12 @@ class SpreadsheetImportPreviewResponse(BaseModel):
 
 class SpreadsheetImportResultResponse(BaseModel):
     """Schema de resposta para o resultado final da importação."""
-
     success: bool
     total_rows: int
     created_count: int
     updated_count: int
-    tags_created_count: int
+    catalogs_created_count: int = 0
+    tags_created_count: int = 0
     maintenances_created_count: int
     errors: list[str] = []
     message: str
