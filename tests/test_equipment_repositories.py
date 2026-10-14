@@ -1,254 +1,406 @@
-"""Testes de integração para os repositórios de Equipamentos."""
-from datetime import datetime, timezone
+"""Testes de integração para os repositórios de Equipamentos, Catálogos e Históricos."""
+from datetime import datetime, timezone, timedelta
 import pytest
 from sqlalchemy.orm import Session
-from src.domain.models import Equipment, EquipmentTag, EquipmentMovement, EquipmentMaintenance
+from src.domain.models import (
+    Equipment,
+    EquipmentType,
+    Sector,
+    EquipmentStatus,
+    MaintenanceType,
+    EquipmentMovement,
+    EquipmentMaintenance,
+)
 from src.infrastructure.repositories import (
     EquipmentRepository,
-    EquipmentTagRepository,
+    CatalogsRepository,
     EquipmentMovementRepository,
     EquipmentMaintenanceRepository,
+    DashboardRepository,
+    UserRepository,
 )
 
 
-def test_equipment_repository_crud_and_lookups(db_session: Session):
-    """Testa métodos de busca por ID, Serial, Patrimônio e Hostname."""
+def test_catalogs_repository_crud(db_session: Session):
+    """Testa métodos de CRUD, soft delete e restauração em CatalogsRepository."""
+    cat_repo = CatalogsRepository(db_session)
+
+    item = EquipmentType(name="Servidor Blade")
+    cat_repo.create(item)
+    db_session.flush()
+
+    assert item.id is not None
+    assert cat_repo.get_by_id(EquipmentType, item.id) is not None
+    assert cat_repo.get_by_name_lower(EquipmentType, "servidor blade") is not None
+    assert cat_repo.get_by_name_lower(EquipmentType, "inexistente") is None
+
+    # Update
+    cat_repo.update(item, "Servidor Rack")
+    db_session.flush()
+    assert item.name == "Servidor Rack"
+
+    # Soft delete
+    cat_repo.soft_delete(item)
+    db_session.flush()
+    assert item.deleted_at is not None
+
+    active_items = cat_repo.list_active(EquipmentType)
+    assert not any(i.id == item.id for i in active_items)
+
+    all_items = cat_repo.list_all(EquipmentType)
+    assert any(i.id == item.id for i in all_items)
+
+    # Restore
+    cat_repo.restore(item)
+    db_session.flush()
+    assert item.deleted_at is None
+    assert any(i.id == item.id for i in cat_repo.list_active(EquipmentType))
+
+
+def test_equipment_repository_lookups_and_active_uniqueness(db_session: Session, test_catalogs):
+    """Testa buscas por patrimônio, serial e identificadores ativos em EquipmentRepository."""
     repo = EquipmentRepository(db_session)
 
     eq = Equipment(
         description="ThinkPad T480",
         serial_number="SN_T480",
         patrimony_number="PAT_T480",
-        hostname="HOST_T480",
-        equipment_type="Notebook",
-        location="TI",
-        status="Em uso",
+        hostname="host_t480",
+        model="T480",
+        equipment_type_id=test_catalogs["type"].id,
+        sector_id=test_catalogs["sector_ti"].id,
+        status_id=test_catalogs["status_em_uso"].id,
+        ip_address="192.168.1.80",
+        mac_address="00:1A:2B:3C:4D:80",
+        printer_identifier="PRN-T480",
     )
     repo.create(eq)
-    db_session.commit()
+    db_session.flush()
 
+    # Lookups
     assert repo.get_by_id(eq.id) is not None
-    assert repo.get_by_serial_number("SN_T480") is not None
-    assert repo.get_by_patrimony_number("PAT_T480") is not None
-    assert repo.get_by_hostname("HOST_T480") is not None
+    assert repo.get_by_patrimony_number("pat_t480") is not None
+    assert repo.get_by_serial_number("sn_t480") is not None
+    assert repo.get_active_by_hostname("HOST_T480") is not None
+    assert repo.get_active_by_ip("192.168.1.80") is not None
+    assert repo.get_active_by_mac("00:1A:2B:3C:4D:80") is not None
+    assert repo.get_active_by_printer_identifier("prn-t480") is not None
+
     assert repo.get_by_serial_number("INEXISTENTE") is None
+    assert repo.get_by_serial_number(None) is None
+    assert repo.get_active_by_hostname(None) is None
+    assert repo.get_active_by_ip(None) is None
+    assert repo.get_active_by_mac(None) is None
+    assert repo.get_active_by_printer_identifier(None) is None
 
 
-def test_equipment_repository_list_paginated_filtered_and_search(db_session: Session):
-    """Testa paginação, filtros combinados, ordenação e busca global por substring."""
+def test_equipment_repository_soft_delete_and_restoration_conflicts(db_session: Session, test_catalogs):
+    """Testa exclusão lógica, detecção de conflitos de restauração e restauração de bem."""
     repo = EquipmentRepository(db_session)
 
-    for i in range(1, 30):
+    eq1 = Equipment(
+        description="Servidor 1",
+        patrimony_number="PAT-SRV-001",
+        hostname="srv-prod.local",
+        ip_address="10.0.0.100",
+        mac_address="00:1A:2B:3C:4D:99",
+        printer_identifier="PRN-SRV-1",
+        equipment_type_id=test_catalogs["type"].id,
+        sector_id=test_catalogs["sector_ti"].id,
+        status_id=test_catalogs["status_em_uso"].id,
+    )
+    repo.create(eq1)
+    db_session.flush()
+
+    # Exclui logicamente eq1
+    repo.soft_delete(eq1)
+    db_session.flush()
+
+    assert repo.get_by_id(eq1.id) is None
+    assert repo.get_by_id(eq1.id, include_deleted=True) is not None
+
+    # Cria eq2 ativo ocupando os mesmos identificadores
+    eq2 = Equipment(
+        description="Servidor 2",
+        patrimony_number="PAT-SRV-002",
+        hostname="srv-prod.local",
+        ip_address="10.0.0.100",
+        mac_address="00:1A:2B:3C:4D:99",
+        printer_identifier="PRN-SRV-1",
+        equipment_type_id=test_catalogs["type"].id,
+        sector_id=test_catalogs["sector_ti"].id,
+        status_id=test_catalogs["status_em_uso"].id,
+    )
+    repo.create(eq2)
+    db_session.flush()
+
+    # Tenta restaurar eq1 -> deve detectar conflitos em todos os identificadores
+    conflicts = repo.check_restoration_conflicts(eq1)
+    assert len(conflicts) == 4
+
+    # Remove conflito de eq2 e restaura eq1
+    repo.soft_delete(eq2)
+    db_session.flush()
+
+    conflicts_resolved = repo.check_restoration_conflicts(eq1)
+    assert len(conflicts_resolved) == 0
+
+    repo.restore(eq1)
+    db_session.flush()
+    assert repo.get_by_id(eq1.id) is not None
+
+
+def test_equipment_repository_list_paginated_and_filtered(db_session: Session, test_catalogs):
+    """Testa paginação, filtros por múltiplos IDs de catálogos e busca global."""
+    repo = EquipmentRepository(db_session)
+
+    for i in range(1, 15):
         eq = Equipment(
-            description=f"Equipamento {i} Dell OptiPlex",
-            serial_number=f"SN_{i:03d}",
-            patrimony_number=f"PAT_{i:03d}",
-            brand="Dell" if i % 2 == 0 else "HP",
-            equipment_type="Desktop" if i % 2 == 0 else "Notebook",
-            location="TI" if i <= 15 else "Comunicação",
-            status="Em uso" if i <= 20 else "Ocioso",
+            description=f"Equipamento {i} Dell",
+            serial_number=f"SN_PG_{i:03d}",
+            patrimony_number=f"PAT_PG_{i:03d}",
+            model="Latitude" if i % 2 == 0 else "OptiPlex",
+            equipment_type_id=test_catalogs["type"].id,
+            sector_id=test_catalogs["sector_ti"].id if i <= 7 else test_catalogs["sector_com"].id,
+            status_id=test_catalogs["status_em_uso"].id if i <= 10 else test_catalogs["status_ocioso"].id,
         )
         repo.create(eq)
-    db_session.commit()
+    db_session.flush()
 
-    # Paginação padrão (25 itens por página)
-    items, total = repo.list_paginated_and_filtered(page=1, limit=25)
-    assert total == 29
-    assert len(items) == 25
+    # Paginação
+    items, total = repo.list_paginated_and_filtered(page=1, limit=10)
+    assert total == 14
+    assert len(items) == 10
 
-    # Segunda página (4 itens)
-    items_p2, total = repo.list_paginated_and_filtered(page=2, limit=25)
-    assert len(items_p2) == 4
+    # Filtro por múltiplos IDs de setor
+    items_sec, total_sec = repo.list_paginated_and_filtered(
+        sector_ids=[test_catalogs["sector_ti"].id],
+    )
+    assert total_sec == 7
 
-    # Filtro categórico
-    items_notebook, total_notebook = repo.list_paginated_and_filtered(equipment_type="Notebook")
-    assert total_notebook == 15
+    # Filtro por status
+    items_st, total_st = repo.list_paginated_and_filtered(
+        status_ids=[test_catalogs["status_ocioso"].id],
+    )
+    assert total_st == 4
 
-    # Busca textual global
+    # Busca textual
     items_search, total_search = repo.list_paginated_and_filtered(search="Equipamento 1")
     assert total_search >= 1
 
-
-def test_equipment_tag_repository(db_session: Session):
-    """Testa todos os métodos do repositório de tags."""
-    repo = EquipmentTagRepository(db_session)
-    eq_repo = EquipmentRepository(db_session)
-
-    # Criação
-    tag = EquipmentTag(category="tipo", name="Notebook")
-    repo.create(tag)
-    loc_tag = EquipmentTag(category="localizacao", name="TI")
-    repo.create(loc_tag)
-    status_tag = EquipmentTag(category="situacao", name="Em uso")
-    repo.create(status_tag)
-    db_session.commit()
-
-    # Listagens e buscas
-    all_tags = repo.list_all()
-    assert len(all_tags) == 3
-    type_tags = repo.list_by_category("tipo")
-    assert len(type_tags) == 1
-    found = repo.get_by_category_and_name("tipo", "Notebook")
-    assert found is not None
-    assert repo.get_by_id(tag.id) is not None
-    assert repo.get_by_id(99999) is None
-
-    # Propagação de renomeação nos 3 campos
-    eq = Equipment(
-        description="Equipamento teste repo tag",
-        serial_number="SN-TAG-REPO-1",
-        equipment_type="Notebook",
-        location="TI",
-        status="Em uso",
-    )
-    eq_repo.create(eq)
-    db_session.commit()
-
-    repo.propagate_tag_rename("tipo", "Notebook", "Laptop")
-    repo.propagate_tag_rename("localizacao", "TI", "Suporte")
-    repo.propagate_tag_rename("situacao", "Em uso", "Operando")
-    repo.propagate_tag_rename("outra_categoria", "A", "B")  # categoria sem efeito
-    db_session.commit()
-    db_session.refresh(eq)
-
-    assert eq.equipment_type == "Laptop"
-    assert eq.location == "Suporte"
-    assert eq.status == "Operando"
-
-    # Exclusão
-    repo.delete(tag)
-    db_session.commit()
-    assert repo.get_by_id(tag.id) is None
+    # list_all_filtered
+    all_filtered = repo.list_all_filtered(sector_ids=[test_catalogs["sector_ti"].id])
+    assert len(all_filtered) == 7
 
 
+def test_equipment_repository_get_distinct_values_by_prefix(db_session: Session, test_catalogs):
+    """Testa busca de sugestões distintas por prefixo com ordenação e limite."""
+    repo = EquipmentRepository(db_session)
 
-def test_equipment_movement_and_maintenance_repositories(db_session: Session):
-    """Testa repositórios de histórico de movimentação e manutenção."""
+    equipments_data = [
+        ("PAT_SUG_100", "SN_SUG_01", "OptiPlex 7090"),
+        ("PAT_SUG_101", "SN_SUG_02", "OptiPlex 3080"),
+        ("PAT_SUG_200", "SN_SUG_03", "Latitude 3420"),
+    ]
+
+    for pat, sn, mod in equipments_data:
+        eq = Equipment(
+            patrimony_number=pat,
+            serial_number=sn,
+            model=mod,
+            equipment_type_id=test_catalogs["type"].id,
+            sector_id=test_catalogs["sector_ti"].id,
+            status_id=test_catalogs["status_em_uso"].id,
+        )
+        repo.create(eq)
+    db_session.flush()
+
+    pats = repo.get_distinct_values_by_prefix("patrimony_number", "pat_sug", limit=10)
+    assert len(pats) == 3
+
+    serials = repo.get_distinct_values_by_prefix("serial_number", "sn_sug", limit=2)
+    assert len(serials) == 2
+
+    models = repo.get_distinct_values_by_prefix("model", "opti", limit=10)
+    assert len(models) == 2
+
+    # Campo inválido
+    assert repo.get_distinct_values_by_prefix("campo_fake", "teste") == []
+
+
+def test_movement_and_maintenance_repositories(db_session: Session, test_catalogs, create_test_user):
+    """Testa persistência e ordenação cronológica nos repositórios de histórico."""
+    tecnico = create_test_user(email="tec_hist_repo@empresa.com")
     eq_repo = EquipmentRepository(db_session)
     mov_repo = EquipmentMovementRepository(db_session)
     maint_repo = EquipmentMaintenanceRepository(db_session)
 
     eq = Equipment(
-        description="Servidor PowerEdge",
-        serial_number="SN_PE_01",
-        equipment_type="Desktop",
-        location="TI",
+        patrimony_number="PAT-HIST-01",
+        equipment_type_id=test_catalogs["type"].id,
+        sector_id=test_catalogs["sector_ti"].id,
+        status_id=test_catalogs["status_em_uso"].id,
     )
     eq_repo.create(eq)
-    db_session.commit()
+    db_session.flush()
 
     now = datetime.now(timezone.utc)
-    mov = EquipmentMovement(
+    mov1 = EquipmentMovement(
         equipment_id=eq.id,
-        origin_location="TI",
-        destination_location="Data Center",
-        movement_date=now,
+        origin_sector_id=test_catalogs["sector_ti"].id,
+        destination_sector_id=test_catalogs["sector_com"].id,
+        movement_date=now - timedelta(days=5),
+        performed_by_user_id=tecnico.id,
     )
-    mov_repo.create(mov)
-
-    maint = EquipmentMaintenance(
+    mov2 = EquipmentMovement(
         equipment_id=eq.id,
-        maintenance_date=now,
-        maintenance_type="Preventiva",
-        description="Limpeza física",
+        origin_sector_id=test_catalogs["sector_com"].id,
+        destination_sector_id=test_catalogs["sector_dir"].id,
+        movement_date=now - timedelta(days=1),
+        performed_by_user_id=tecnico.id,
     )
-    maint_repo.create(maint)
-    db_session.commit()
+    mov_repo.create(mov1)
+    mov_repo.create(mov2)
+    db_session.flush()
 
-    movs = mov_repo.list_by_equipment(eq.id)
+    ordered_movs = mov_repo.get_ordered_movements(eq.id)
+    assert len(ordered_movs) == 2
+    assert ordered_movs[0].id == mov1.id
+    assert ordered_movs[1].id == mov2.id
+
+    assert mov_repo.get_by_id(mov1.id) is not None
+    assert mov_repo.get_by_id(999999) is None
+
+    # Manutenções
+    maint_open = EquipmentMaintenance(
+        equipment_id=eq.id,
+        started_at=now,
+        completed_at=None,
+        maintenance_type_id=test_catalogs["maint_corr"].id,
+        performed_by_user_id=tecnico.id,
+    )
+    maint_repo.create(maint_open)
+    db_session.flush()
+
+    assert maint_repo.get_open_maintenance(eq.id) is not None
+    assert maint_repo.get_by_id(maint_open.id) is not None
+    assert maint_repo.get_by_id(999999) is None
+
     maints = maint_repo.list_by_equipment(eq.id)
-
-    assert len(movs) == 1
-    assert movs[0].destination_location == "Data Center"
     assert len(maints) == 1
-    assert maints[0].description == "Limpeza física"
 
 
-def test_equipment_repository_get_distinct_values_by_prefix(db_session: Session):
-    """Testa busca de sugestões distintas por prefixo com ordenação e limite."""
-    repo = EquipmentRepository(db_session)
+def test_dashboard_repository_metrics(db_session: Session, test_catalogs):
+    """Testa consolidação patrimonial em DashboardRepository."""
+    dash_repo = DashboardRepository(db_session)
+    eq_repo = EquipmentRepository(db_session)
 
-    # Cria equipamentos com diferentes prefixos e campos nulos
-    equipments_data = [
-        ("Notebook A", "SN_ABC_01", "PAT_100", "PROD_X1"),
-        ("Notebook B", "SN_ABC_02", "PAT_101", "PROD_X2"),
-        ("Notebook C", "SN_XYZ_01", "PAT_200", None),
-        ("Notebook D", "SN_abc_03", "pat_102", "PROD_X1"),  # duplicado em produto, case diferente
-        ("Desktop E", "SN_DEF_01", None, "PROD_Y1"),
-    ]
-
-    for desc, sn, pat, prod in equipments_data:
-        eq = Equipment(
-            description=desc,
-            serial_number=sn,
-            patrimony_number=pat,
-            product_number=prod,
-            equipment_type="Notebook",
-            location="TI",
-        )
-        repo.create(eq)
-    db_session.commit()
-
-    # Busca prefixo 'pat_' (case-insensitive)
-    pats = repo.get_distinct_values_by_prefix("patrimony_number", "pat", limit=10)
-    assert len(pats) == 4
-    assert "PAT_100" in pats
-    assert "PAT_101" in pats
-    assert "PAT_200" in pats
-    assert "pat_102" in pats
-
-
-    # Busca com limite menor
-    pats_limited = repo.get_distinct_values_by_prefix("patrimony_number", "PAT", limit=2)
-    assert len(pats_limited) == 2
-
-    # Busca prefixo serial_number
-    serials = repo.get_distinct_values_by_prefix("serial_number", "sn_abc", limit=10)
-    assert len(serials) == 3
-
-    # Busca prefixo product_number (valores distintos)
-    products = repo.get_distinct_values_by_prefix("product_number", "PROD", limit=10)
-    assert len(products) == 3  # PROD_X1, PROD_X2, PROD_Y1
-    assert "PROD_X1" in products
-
-    # Campo inválido retorna lista vazia
-    invalid = repo.get_distinct_values_by_prefix("campo_inexistente", "teste")
-    assert invalid == []
-
-
-def test_equipment_repository_list_all_filtered(db_session: Session):
-    """Testa busca completa não paginada list_all_filtered."""
-    repo = EquipmentRepository(db_session)
     eq1 = Equipment(
-        description="Notebook Dell XPS",
-        serial_number="SN_XPS_01",
-        patrimony_number="PAT_XPS_01",
-        equipment_type="Notebook",
-        location="TI",
-        status="Em uso",
+        patrimony_number="PAT-DASH-01",
+        equipment_type_id=test_catalogs["type"].id,
+        sector_id=test_catalogs["sector_ti"].id,
+        status_id=test_catalogs["status_em_uso"].id,
     )
     eq2 = Equipment(
-        description="Desktop HP ProDesk",
-        serial_number="SN_HP_01",
-        patrimony_number="PAT_HP_01",
-        equipment_type="Desktop",
-        location="RH",
-        status="Disponível",
+        patrimony_number="PAT-DASH-02",
+        equipment_type_id=test_catalogs["type"].id,
+        sector_id=test_catalogs["sector_com"].id,
+        status_id=test_catalogs["status_em_manutencao"].id,
     )
-    repo.create(eq1)
-    repo.create(eq2)
-    db_session.commit()
+    eq3 = Equipment(
+        patrimony_number="PAT-DASH-03",
+        equipment_type_id=test_catalogs["type"].id,
+        sector_id=test_catalogs["sector_dir"].id,
+        status_id=test_catalogs["status_ocioso"].id,
+        deleted_at=datetime.now(timezone.utc),  # Excluído não deve contar
+    )
+    eq_repo.create(eq1)
+    eq_repo.create(eq2)
+    eq_repo.create(eq3)
+    db_session.flush()
 
-    all_items = repo.list_all_filtered()
-    assert len(all_items) >= 2
-
-    # Filtrado por tipo e localizacao
-    filtered = repo.list_all_filtered(equipment_type=["Notebook"], location=["TI"])
-    assert len(filtered) == 1
-    assert filtered[0].serial_number == "SN_XPS_01"
-
-    # Ordenação asc
-    ordered = repo.list_all_filtered(sort_by="description", sort_dir="asc")
-    assert len(ordered) >= 2
+    metrics = dash_repo.get_metrics()
+    assert metrics["equipments_total"] >= 2
+    assert metrics["equipments_in_use"] >= 1
+    assert metrics["equipments_in_maintenance"] >= 1
+    assert "TI" in metrics["by_sector"]
+    assert "Desktop" in metrics["by_type"]
 
 
+def test_repository_edge_cases_and_filters(db_session: Session, test_catalogs, create_test_user):
+    user_repo = UserRepository(db_session)
+    eq_repo = EquipmentRepository(db_session)
+
+    # 1. User include_deleted
+    user = create_test_user(email="deleted_user@empresa.com", role="tecnico")
+    user_repo.soft_delete(user)
+    db_session.flush()
+
+    assert user_repo.get_by_email("deleted_user@empresa.com", include_deleted=False) is None
+    assert user_repo.get_by_email("deleted_user@empresa.com", include_deleted=True) is not None
+    assert user_repo.get_by_id(user.id, include_deleted=False) is None
+    assert user_repo.get_by_id(user.id, include_deleted=True) is not None
+
+    # 2. Filters with single int, single str, sort_dir="asc", include_deleted=True
+    eq_active = Equipment(
+        patrimony_number="PAT-FILTER-1",
+        serial_number="SN-FILTER-1",
+        equipment_type_id=test_catalogs["type"].id,
+        sector_id=test_catalogs["sector_ti"].id,
+        status_id=test_catalogs["status_em_uso"].id,
+        ip_address="192.168.10.10",
+        mac_address="00:11:22:33:44:55",
+        printer_identifier="PRN-REP-01",
+    )
+    eq_deleted = Equipment(
+        patrimony_number="PAT-FILTER-2",
+        serial_number="SN-FILTER-2",
+        equipment_type_id=test_catalogs["type"].id,
+        sector_id=test_catalogs["sector_ti"].id,
+        status_id=test_catalogs["status_em_uso"].id,
+        deleted_at=datetime.now(timezone.utc),
+    )
+    eq_repo.create(eq_active)
+    eq_repo.create(eq_deleted)
+    db_session.flush()
+
+    assert eq_repo.get_by_id(eq_deleted.id, include_deleted=False) is None
+    assert eq_repo.get_by_id(eq_deleted.id, include_deleted=True) is not None
+    assert eq_repo.get_by_patrimony_number("PAT-FILTER-2", include_deleted=False) is None
+    assert eq_repo.get_by_patrimony_number("PAT-FILTER-2", include_deleted=True) is not None
+    assert eq_repo.get_by_serial_number("SN-FILTER-2", include_deleted=False) is None
+    assert eq_repo.get_by_serial_number("SN-FILTER-2", include_deleted=True) is not None
+
+    items, total = eq_repo.list_paginated_and_filtered(
+        equipment_type_ids=test_catalogs["type"].id,
+        sector_ids=test_catalogs["sector_ti"].id,
+        status_ids=test_catalogs["status_em_uso"].id,
+        patrimony_number=["PAT-FILTER", ""],
+        serial_number=["SN-FILTER", None],
+        sort_by="patrimony_number",
+        sort_dir="asc",
+        include_deleted=True,
+    )
+    assert total >= 2
+
+    all_items = eq_repo.list_all_filtered(
+        serial_number="SN-FILTER-1",
+        sort_by="patrimony_number",
+        sort_dir="asc",
+    )
+    assert len(all_items) == 1
+
+    # 3. Check restoration conflicts for IP, MAC, Printer
+    eq_to_restore = Equipment(
+        patrimony_number="PAT-COLLIDE",
+        equipment_type_id=test_catalogs["type"].id,
+        sector_id=test_catalogs["sector_ti"].id,
+        status_id=test_catalogs["status_em_uso"].id,
+        ip_address="192.168.10.10",
+        mac_address="00:11:22:33:44:55",
+        printer_identifier="PRN-REP-01",
+    )
+    conflicts = eq_repo.check_restoration_conflicts(eq_to_restore)
+    assert any("Endereço IP" in c for c in conflicts)
+    assert any("Endereço MAC" in c for c in conflicts)
+    assert any("Identificador de impressora" in c for c in conflicts)

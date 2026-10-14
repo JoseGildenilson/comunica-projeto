@@ -1,4 +1,4 @@
-"""Testes unitários para os serviços de segurança, Argon2id e JWT."""
+"""Testes unitários para os serviços de segurança, Argon2id, JWT e criptografia de chaves Windows."""
 from datetime import timedelta
 import base64
 import pytest
@@ -10,6 +10,9 @@ from src.core.security import (
     decode_token,
     create_token,
     _base64url_encode,
+    encrypt_windows_product_key,
+    decrypt_windows_product_key,
+    mask_windows_product_key,
 )
 
 
@@ -56,7 +59,6 @@ def test_jwt_refresh_token_lifecycle():
 def test_jwt_expired_token():
     """Testa a rejeição de tokens expirados."""
     payload = {"sub": "1"}
-    # Token expirado há 10 segundos
     token = create_token(data=payload, expires_delta=timedelta(seconds=-10), token_type="access")
 
     with pytest.raises(ValueError, match="expirado"):
@@ -87,3 +89,33 @@ def test_jwt_invalid_payload_json():
 
     with pytest.raises(ValueError, match="Payload inválido"):
         decode_token(bad_token)
+
+
+def test_windows_product_key_encryption_decryption_and_masking():
+    """Testa encriptação Fernet, decriptação fiel e mascaramento de chaves Windows."""
+    raw_key = "VK9X2-N8Y4R-W3M2T-K7P1Q-L9Z0A"
+
+    # Encriptação e decriptação válidas
+    encrypted = encrypt_windows_product_key(raw_key)
+    assert encrypted is not None
+    assert encrypted != raw_key
+    assert len(encrypted) > 20
+
+    decrypted = decrypt_windows_product_key(encrypted)
+    assert decrypted == raw_key
+
+    # Mascaramento
+    assert mask_windows_product_key(encrypted) == "••••••••••••••••"
+    assert mask_windows_product_key(raw_key) == "••••••••••••••••"
+    assert mask_windows_product_key(None) is None
+    assert mask_windows_product_key("") is None
+    assert mask_windows_product_key("   ") is None
+
+    # Entradas vazias na encriptação e decriptação
+    assert encrypt_windows_product_key(None) is None
+    assert encrypt_windows_product_key("") is None
+    assert encrypt_windows_product_key("   ") is None
+
+    assert decrypt_windows_product_key(None) is None
+    assert decrypt_windows_product_key("") is None
+    assert decrypt_windows_product_key("   ") is None

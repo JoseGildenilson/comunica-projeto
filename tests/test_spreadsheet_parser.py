@@ -106,11 +106,11 @@ def test_parse_excel_valid():
         None, "LG", "01/05/2021", None,
         None, None, None, None
     ]
-    blank_row = [None, None, None, None, None, None, None, None, None, None, None, None, None]
+    blank_row = ["", "   ", None, None, None, None, None, None, None, None, None, None, None]
 
     excel_bytes = create_mock_excel(
         sheet_name="Ativos Patrimônio",
-        rows=[headers, row1, row_empty_ident, blank_row]
+        rows=[headers, row1, blank_row, row_empty_ident]
     )
 
     parsed = parse_spreadsheet(excel_bytes, "inventario.xlsx")
@@ -203,3 +203,11 @@ def test_parse_csv_no_headers():
     from src.infrastructure import spreadsheet_parser
     with pytest.raises(ValueError, match="O arquivo CSV está vazio"):
         spreadsheet_parser._parse_csv(b"\n\n", "teste.csv")
+
+
+def test_parse_csv_sniffer_fallback():
+    # CSV sem separador claro onde o Sniffer falha e cai no fallback
+    content = "TIPO\nNOTEBOOK\n"
+    parsed = parse_spreadsheet(content.encode("utf-8"), "fallback.csv")
+    assert len(parsed.rows) == 1
+    assert parsed.rows[0].equipment_type == "NOTEBOOK"

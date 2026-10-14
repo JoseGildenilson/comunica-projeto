@@ -72,12 +72,17 @@ async def test_preview_endpoint_empty_filename_bad_request(client: AsyncClient, 
 
 
 @pytest.mark.anyio
-async def test_preview_endpoint_colaborador_forbidden(client: AsyncClient, auth_headers):
-    headers = auth_headers(role="colaborador")
-    files = {"file": ("teste.xlsx", b"data", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
-    response = await client.post("/api/v1/equipments/import/preview", headers=headers, files=files)
-
-    assert response.status_code == 403
+async def test_preview_endpoint_colaborador_forbidden(client: AsyncClient):
+    from src.api.dependencies import get_current_user
+    from src.domain.models import User
+    from src.main import app
+    app.dependency_overrides[get_current_user] = lambda: User(id=999, email="colab@empresa.com", role="colaborador", is_active=True)
+    try:
+        files = {"file": ("teste.xlsx", b"data", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
+        response = await client.post("/api/v1/equipments/import/preview", files=files)
+        assert response.status_code == 403
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.mark.anyio
@@ -131,12 +136,17 @@ async def test_execute_import_endpoint_invalid_file_bad_request(client: AsyncCli
 
 
 @pytest.mark.anyio
-async def test_execute_import_endpoint_colaborador_forbidden(client: AsyncClient, auth_headers):
-    headers = auth_headers(role="colaborador")
-    files = {"file": ("planilha.xlsx", b"data", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
-    response = await client.post("/api/v1/equipments/import/execute", headers=headers, files=files)
-
-    assert response.status_code == 403
+async def test_execute_import_endpoint_colaborador_forbidden(client: AsyncClient):
+    from src.api.dependencies import get_current_user
+    from src.domain.models import User
+    from src.main import app
+    app.dependency_overrides[get_current_user] = lambda: User(id=999, email="colab@empresa.com", role="colaborador", is_active=True)
+    try:
+        files = {"file": ("planilha.xlsx", b"data", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
+        response = await client.post("/api/v1/equipments/import/execute", files=files)
+        assert response.status_code == 403
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.mark.anyio

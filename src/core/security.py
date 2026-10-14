@@ -131,3 +131,32 @@ def decode_token(token: str) -> Dict[str, Any]:
         raise ValueError("Token expirado")
 
     return payload
+
+
+def _get_fernet():
+    from cryptography.fernet import Fernet
+    key = base64.urlsafe_b64encode(hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).digest())
+    return Fernet(key)
+
+
+def encrypt_windows_product_key(plain_key: str | None) -> str | None:
+    """Criptografa simetricamente a chave de produto do Windows usando Fernet."""
+    if plain_key is None or not plain_key.strip():
+        return None
+    fernet = _get_fernet()
+    return fernet.encrypt(plain_key.strip().encode("utf-8")).decode("utf-8")
+
+
+def decrypt_windows_product_key(encrypted_key: str | None) -> str | None:
+    """Decriptografa a chave de produto do Windows encriptada."""
+    if encrypted_key is None or not encrypted_key.strip():
+        return None
+    fernet = _get_fernet()
+    return fernet.decrypt(encrypted_key.strip().encode("utf-8")).decode("utf-8")
+
+
+def mask_windows_product_key(encrypted_or_plain_key: str | None) -> str | None:
+    """Retorna máscara fixa para chave do Windows existente ou None."""
+    if encrypted_or_plain_key is None or not str(encrypted_or_plain_key).strip():
+        return None
+    return "••••••••••••••••"

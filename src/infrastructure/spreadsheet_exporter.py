@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from src.core.security import mask_windows_product_key
 from src.domain.models import Equipment
 
 
@@ -17,8 +18,8 @@ HEADERS = [
     "MARCA",
     "ÚLTIMA MANUTENÇÃO",
     "CHAVE WINDOWS",
-    "Nº PRODUTO",
-    "HISTÓRICO DE MOVIMENTAÇÕES",
+    "MODELO",
+    "HISTÓRICO DE MANUTENÇÕES",
     "HOSTNAME",
     "OBSERVAÇÕES",
 ]
@@ -33,8 +34,8 @@ COLUMN_WIDTHS = {
     7: 14.0,   # G - MARCA
     8: 18.0,   # H - ÚLTIMA MANUTENÇÃO
     9: 32.0,   # I - CHAVE WINDOWS
-    10: 20.0,  # J - Nº PRODUTO
-    11: 45.0,  # K - HISTÓRICO DE MOVIMENTAÇÕES
+    10: 20.0,  # J - MODELO
+    11: 45.0,  # K - HISTÓRICO DE MANUTENÇÕES
     12: 16.0,  # L - HOSTNAME
     13: 45.0,  # M - OBSERVAÇÕES
 }
@@ -45,16 +46,16 @@ def _format_maintenances(equipment: Equipment) -> str:
     if not equipment.maintenances:
         return ""
 
-    # Normaliza e ordena por data crescente
     sorted_maints = sorted(
         equipment.maintenances,
-        key=lambda m: (m.maintenance_date or datetime.min.replace(tzinfo=timezone.utc)),
+        key=lambda m: (m.started_at or datetime.min.replace(tzinfo=timezone.utc)),
     )
 
     lines: list[str] = []
     for m in sorted_maints:
-        date_str = m.maintenance_date.strftime("%d/%m/%Y") if m.maintenance_date else ""
-        desc = m.description.strip() if m.description else ""
+        date_str = m.started_at.strftime("%d/%m/%Y") if m.started_at else ""
+        type_str = m.maintenance_type.name if (m.maintenance_type and m.maintenance_type.name) else None
+        desc = m.description.strip() if (m.description and m.description.strip()) else type_str
         notes = f" (Obs: {m.notes.strip()})" if m.notes and m.notes.strip() else ""
 
         entry = ""
@@ -117,17 +118,26 @@ def generate_equipments_excel(equipments: list[Equipment]) -> bytes:
     # Inserção dos dados
     for row_idx, eq in enumerate(equipments, start=2):
         ws.row_dimensions[row_idx].height = 20.0
+
+        latest_maint = None
+        if eq.maintenances:
+            latest_maint = max((m.started_at for m in eq.maintenances if m.started_at), default=None)
+
+        type_name = eq.equipment_type.name if eq.equipment_type else ""
+        sector_name = eq.sector.name if eq.sector else ""
+        status_name = eq.status.name if eq.status else ""
+
         row_values = [
-            eq.equipment_type or "",
-            eq.location or "",
-            eq.status or "",
+            type_name,
+            sector_name,
+            status_name,
             eq.description or "",
             eq.patrimony_number or "",
             eq.serial_number or "",
             eq.brand or "",
-            _format_date(eq.last_maintenance_at),
-            eq.windows_key or "",
-            eq.product_number or "",
+            _format_date(latest_maint),
+            mask_windows_product_key(eq.windows_product_key_encrypted) or "",
+            eq.model or "",
             _format_maintenances(eq),
             eq.hostname or "",
             eq.notes or "",
@@ -137,7 +147,6 @@ def generate_equipments_excel(equipments: list[Equipment]) -> bytes:
             cell = ws.cell(row=row_idx, column=col_idx, value=val)
             cell.font = data_font
             cell.border = thin_border
-            # Alinhamento centralizado para colunas curtas/padronizadas
             if col_idx in (1, 3, 5, 6, 7, 8, 10, 12):
                 cell.alignment = data_alignment_center
             else:

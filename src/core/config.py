@@ -12,7 +12,7 @@ class Settings(BaseModel):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 1
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "sqlite:///./internal_management.db"
+        "postgresql://postgres@localhost:5432/comunica_patrimonio"
     )
     RATE_LIMIT_MAX_ATTEMPTS: int = 10
     RATE_LIMIT_WINDOW_MINUTES: int = 15
