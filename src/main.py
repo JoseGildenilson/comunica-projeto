@@ -1,10 +1,14 @@
 """Aplicação principal do FastAPI."""
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+
 # pyrefly: ignore [missing-import]
 from src.api.routes import router as auth_router
+
 # pyrefly: ignore [missing-import]
 from src.api.dashboard_routes import router as dashboard_router
+
 # pyrefly: ignore [missing-import]
 from src.api.equipment_routes import router as equipment_router
 from src.api.import_routes import router as import_router

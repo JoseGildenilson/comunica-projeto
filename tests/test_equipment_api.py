@@ -1,5 +1,7 @@
 """Testes de API HTTP para os endpoints de Gestão de Equipamentos (FastAPI)."""
 from datetime import datetime, timezone
+import io
+import openpyxl
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.orm import Session
@@ -413,6 +415,42 @@ async def test_equipment_api_export_all_and_filtered(client: AsyncClient, tecnic
     resp_filtered = await client.get("/api/v1/equipments/export?type=Notebook&location=TI")
     assert resp_filtered.status_code == 200
     assert len(resp_filtered.content) > 0
+
+    # TASK-QA-13: Inspeção estrutural binária com openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(resp_filtered.content))
+    assert wb.sheetnames == ["Patrimônio"]
+    ws = wb["Patrimônio"]
+
+    expected_headers = [
+        "TIPO",
+        "LOCALIZAÇÃO",
+        "SITUAÇÃO",
+        "DESCRIÇÃO",
+        "Nº PATRIMÔNIO",
+        "Nº SÉRIE",
+        "MARCA",
+        "ÚLTIMA MANUTENÇÃO",
+        "CHAVE WINDOWS",
+        "Nº PRODUTO",
+        "HISTÓRICO DE MOVIMENTAÇÕES",
+        "HOSTNAME",
+        "OBSERVAÇÕES",
+    ]
+    actual_headers = [cell.value for cell in ws[1]]
+    assert actual_headers == expected_headers
+
+    # Exatamente 2 linhas: 1 cabeçalho + 1 registro filtrado (Notebook TI)
+    assert ws.max_row == 2
+    row2 = [cell.value for cell in ws[2]]
+    assert row2[0] == "Notebook"
+    assert row2[1] == "TI"
+    assert row2[2] == "Em uso"
+    assert row2[3] == "Notebook Lenovo L14"
+    assert row2[4] == "PAT_EXPORT_001"
+    assert row2[5] == "SN_EXPORT_001"
+    assert row2[6] == "Lenovo"
+    assert row2[7] == "20/08/2026"
+    assert "Substituição de cooler" in str(row2[10])
 
 
 @pytest.mark.anyio

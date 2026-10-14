@@ -9,6 +9,7 @@ from src.domain.schemas import (
     EquipmentMaintenanceCreate,
     EquipmentTagCreate,
 )
+from src.infrastructure.repositories import EquipmentRepository
 from src.use_cases.equipment_use_cases import (
     CreateEquipmentUseCase,
     ListEquipmentsUseCase,
@@ -70,6 +71,55 @@ def test_create_equipment_use_case_success_and_duplicates(db_session: Session):
             equipment_type="Notebook",
             location="TI",
         ))
+
+
+def test_create_equipment_use_case_empty_string_normalization(db_session: Session):
+    """Testa se campos opcionais com string vazia ou espaços são normalizados para None sem erro de duplicidade."""
+    create_uc = CreateEquipmentUseCase(db_session)
+
+    # Criação 1 com string vazia em patrimony_number e hostname
+    eq1 = create_uc.execute(EquipmentCreate(
+        serial_number="SN_NORM_001",
+        patrimony_number="",
+        hostname="   ",
+        description="Dell Inspiron",
+        equipment_type="Notebook",
+        location="TI",
+        status="Em uso",
+    ))
+    db_session.commit()
+    assert eq1.id is not None
+    assert eq1.patrimony_number is None
+    assert eq1.hostname is None
+
+    # Criação 2 com string vazia em patrimony_number e hostname (não deve violar unique constraint)
+    eq2 = create_uc.execute(EquipmentCreate(
+        serial_number="SN_NORM_002",
+        patrimony_number="   ",
+        hostname="",
+        description="Lenovo ThinkPad",
+        equipment_type="Notebook",
+        location="RH",
+        status="Em uso",
+    ))
+    db_session.commit()
+    assert eq2.id is not None
+    assert eq2.patrimony_number is None
+    assert eq2.hostname is None
+
+    # Criação 3 com serial_number vazio normalizado para None
+    eq3 = create_uc.execute(EquipmentCreate(
+        serial_number="",
+        patrimony_number=None,
+        hostname=None,
+        description="Teclado USB",
+        equipment_type="Periférico",
+        location="Almoxarifado",
+        status="Disponível",
+    ))
+    db_session.commit()
+    assert eq3.id is not None
+    assert eq3.serial_number is None
 
 
 def test_list_and_get_equipment_detail_use_cases(db_session: Session):
@@ -162,6 +212,88 @@ def test_update_equipment_use_case(db_session: Session):
     # Equipamento inexistente
     with pytest.raises(KeyError):
         update_uc.execute(99999, EquipmentUpdate(description="Inexistente"))
+
+
+def test_update_equipment_clear_nullable_fields_to_none_and_empty(db_session: Session):
+    """Testa se patrimony_number, hostname e serial_number podem ser limpos para None ou vazio sem erro de duplicidade (TASK-QA-04 / CR-BUG-01)."""
+    create_uc = CreateEquipmentUseCase(db_session)
+    update_uc = UpdateEquipmentUseCase(db_session)
+    repo = EquipmentRepository(db_session)
+
+    # 1. Cria dois equipamentos com campos preenchidos
+    eq1 = create_uc.execute(EquipmentCreate(
+        serial_number="SN_CLR_1",
+        patrimony_number="PAT_CLR_1",
+        hostname="HOST_CLR_1",
+        description="Equipamento 1 para limpeza",
+        equipment_type="Desktop",
+        location="TI",
+    ))
+    eq2 = create_uc.execute(EquipmentCreate(
+        serial_number="SN_CLR_2",
+        patrimony_number="PAT_CLR_2",
+        hostname="HOST_CLR_2",
+        description="Equipamento 2 para limpeza",
+        equipment_type="Notebook",
+        location="RH",
+    ))
+
+    # 2. Limpa campos do eq1 enviando None
+    updated_eq1 = update_uc.execute(eq1.id, EquipmentUpdate(
+        serial_number=None,
+        patrimony_number=None,
+        hostname=None,
+    ))
+    assert updated_eq1.serial_number is None
+    assert updated_eq1.patrimony_number is None
+    assert updated_eq1.hostname is None
+
+    # 3. Limpa campos do eq2 enviando string vazia ""
+    updated_eq2 = update_uc.execute(eq2.id, EquipmentUpdate(
+        serial_number="",
+        patrimony_number="   ",
+        hostname="",
+    ))
+    assert updated_eq2.serial_number is None
+    assert updated_eq2.patrimony_number is None
+    assert updated_eq2.hostname is None
+
+    # 4. Ambos possuem campos None sem falso erro de duplicidade
+    assert repo.get_by_patrimony_number(None) is None
+    assert repo.get_by_patrimony_number("") is None
+    assert repo.get_by_hostname(None) is None
+    assert repo.get_by_hostname("") is None
+    assert repo.get_by_serial_number(None) is None
+    assert repo.get_by_serial_number("") is None
+
+    # 5. Criar terceiro equipamento também com campos None
+    eq3 = create_uc.execute(EquipmentCreate(
+        serial_number=None,
+        patrimony_number=None,
+        hostname=None,
+        description="Equipamento 3 sem identificadores",
+        equipment_type="Monitor",
+        location="Depósito",
+    ))
+    assert eq3.id is not None
+    assert eq3.patrimony_number is None
+
+    # 6. Atualizar mantendo o mesmo valor próprio não gera erro de duplicidade
+    update_uc.execute(eq1.id, EquipmentUpdate(
+        serial_number="SN_NOVO_01",
+        patrimony_number="PAT_NOVO_01",
+        hostname="HOST_NOVO_01",
+    ))
+    same_updated = update_uc.execute(eq1.id, EquipmentUpdate(
+        serial_number="SN_NOVO_01",
+        patrimony_number="PAT_NOVO_01",
+        hostname="HOST_NOVO_01",
+    ))
+    assert same_updated.serial_number == "SN_NOVO_01"
+    assert same_updated.patrimony_number == "PAT_NOVO_01"
+    assert same_updated.hostname == "HOST_NOVO_01"
+
+
 
 
 def test_record_movement_use_case_updates_location_without_changing_status(db_session: Session):

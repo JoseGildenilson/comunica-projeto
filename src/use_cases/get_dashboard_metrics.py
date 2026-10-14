@@ -1,4 +1,5 @@
 """Caso de uso para consulta das métricas do Dashboard baseando-se no papel (role) do usuário."""
+
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 from src.domain.schemas import DashboardMetricsResponse
@@ -29,8 +30,12 @@ class GetDashboardMetricsUseCase:
             )
 
         # Visão de colaborador
-        tickets_pending = self.dashboard_repo.count_tickets_by_status(status="pendente", user_id=user_id)
-        tickets_in_progress = self.dashboard_repo.count_tickets_by_status(status="em_andamento", user_id=user_id)
+        tickets_pending = self.dashboard_repo.count_tickets_by_status(
+            status="pendente", user_id=user_id
+        )
+        tickets_in_progress = self.dashboard_repo.count_tickets_by_status(
+            status="em_andamento", user_id=user_id
+        )
         return DashboardMetricsResponse(
             tickets_pending=tickets_pending,
             tickets_in_progress=tickets_in_progress,

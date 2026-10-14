@@ -1,4 +1,5 @@
 """Rotas da API de Dashboard."""
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 from src.api.dependencies import get_current_user

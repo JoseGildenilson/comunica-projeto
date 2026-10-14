@@ -1,4 +1,5 @@
 """Script para popular o banco de dados com dados iniciais (seed) e fictícios para testes."""
+
 from sqlalchemy.orm import Session
 from src.core.database import SessionLocal
 from src.core.security import hash_password
@@ -118,10 +119,30 @@ def seed_database():
         # Tickets
         if db.query(Ticket).count() == 0:
             tickets = [
-                Ticket(title="Troca de teclado quebrada", description="Tecla barra de espaço afundou", status="pendente", created_by_id=colaborador.id),
-                Ticket(title="Lente do monitor piscando", description="Pisca aleatoriamente durante o dia", status="em_andamento", created_by_id=colaborador.id),
-                Ticket(title="Upgrade de memória ram", description="Solicitação de +16GB para virtualização", status="pendente", created_by_id=tecnico.id),
-                Ticket(title="Instalação de software VPN", description="Necessário para home office", status="resolvido", created_by_id=colaborador.id),
+                Ticket(
+                    title="Troca de teclado quebrada",
+                    description="Tecla barra de espaço afundou",
+                    status="pendente",
+                    created_by_id=colaborador.id,
+                ),
+                Ticket(
+                    title="Lente do monitor piscando",
+                    description="Pisca aleatoriamente durante o dia",
+                    status="em_andamento",
+                    created_by_id=colaborador.id,
+                ),
+                Ticket(
+                    title="Upgrade de memória ram",
+                    description="Solicitação de +16GB para virtualização",
+                    status="pendente",
+                    created_by_id=tecnico.id,
+                ),
+                Ticket(
+                    title="Instalação de software VPN",
+                    description="Necessário para home office",
+                    status="resolvido",
+                    created_by_id=colaborador.id,
+                ),
             ]
             db.add_all(tickets)
 

@@ -1,4 +1,5 @@
 """Roteador HTTP do FastAPI para Gestão de Equipamentos (Patrimônio)."""
+
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
@@ -91,7 +92,9 @@ def create_equipment(
 
 @router.get("/tags", response_model=list[EquipmentTagResponse])
 def list_tags(
-    category: str | None = Query(default=None, description="Filtrar por categoria: tipo, localizacao, situacao"),
+    category: str | None = Query(
+        default=None, description="Filtrar por categoria: tipo, localizacao, situacao"
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_tecnico_role),
 ):
@@ -157,10 +160,11 @@ def delete_tag(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
-
 @router.get("/suggestions", response_model=List[str])
 def get_suggestions(
-    field: str = Query(..., description="Nome do campo: patrimony_number, serial_number, product_number"),
+    field: str = Query(
+        ..., description="Nome do campo: patrimony_number, serial_number, product_number"
+    ),
     prefix: str = Query(..., description="Prefixo de busca (mínimo 2 caracteres)"),
     limit: int = Query(default=10, ge=1, le=50, description="Quantidade máxima de sugestões"),
     db: Session = Depends(get_db),
@@ -209,7 +213,6 @@ def export_equipments(
 
 
 @router.get("/{id}", response_model=EquipmentResponse)
-
 def get_equipment_detail(
     id: int,
     db: Session = Depends(get_db),
@@ -245,7 +248,9 @@ def update_equipment(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.post("/{id}/movements", response_model=EquipmentMovementResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{id}/movements", response_model=EquipmentMovementResponse, status_code=status.HTTP_201_CREATED
+)
 def record_movement(
     id: int,
     data: EquipmentMovementCreate,
@@ -264,7 +269,11 @@ def record_movement(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
-@router.post("/{id}/maintenances", response_model=EquipmentMaintenanceResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{id}/maintenances",
+    response_model=EquipmentMaintenanceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def record_maintenance(
     id: int,
     data: EquipmentMaintenanceCreate,

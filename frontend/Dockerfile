@@ -3,12 +3,12 @@
 # ==========================================
 
 # Estágio de Desenvolvimento (Vite Dev Server)
-FROM node:20-alpine AS development
+FROM node:20.18-alpine3.20 AS development
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
 COPY . .
 
@@ -17,7 +17,7 @@ EXPOSE 5173
 CMD ["npm", "run", "dev"]
 
 # Estágio de Build para Produção
-FROM node:20-alpine AS builder
+FROM node:20.18-alpine3.20 AS builder
 
 WORKDIR /app
 
@@ -27,12 +27,12 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Estágio de Produção com Nginx
-FROM nginx:alpine AS production
+# Estágio de Produção com Nginx Não-Privilegiado
+FROM nginxinc/nginx-unprivileged:alpine AS production
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]

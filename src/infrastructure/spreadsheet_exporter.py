@@ -1,4 +1,5 @@
 """Utilitário para geração e exportação de planilhas Excel (.xlsx) de equipamentos."""
+
 import io
 from datetime import datetime, timezone
 import openpyxl
@@ -24,15 +25,15 @@ HEADERS = [
 ]
 
 COLUMN_WIDTHS = {
-    1: 16.0,   # A - TIPO
-    2: 20.0,   # B - LOCALIZAÇÃO
-    3: 18.0,   # C - SITUAÇÃO
-    4: 38.0,   # D - DESCRIÇÃO
-    5: 16.0,   # E - Nº PATRIMÔNIO
-    6: 18.0,   # F - Nº SÉRIE
-    7: 14.0,   # G - MARCA
-    8: 18.0,   # H - ÚLTIMA MANUTENÇÃO
-    9: 32.0,   # I - CHAVE WINDOWS
+    1: 16.0,  # A - TIPO
+    2: 20.0,  # B - LOCALIZAÇÃO
+    3: 18.0,  # C - SITUAÇÃO
+    4: 38.0,  # D - DESCRIÇÃO
+    5: 16.0,  # E - Nº PATRIMÔNIO
+    6: 18.0,  # F - Nº SÉRIE
+    7: 14.0,  # G - MARCA
+    8: 18.0,  # H - ÚLTIMA MANUTENÇÃO
+    9: 32.0,  # I - CHAVE WINDOWS
     10: 20.0,  # J - Nº PRODUTO
     11: 45.0,  # K - HISTÓRICO DE MOVIMENTAÇÕES
     12: 16.0,  # L - HOSTNAME
@@ -48,7 +49,7 @@ def _format_maintenances(equipment: Equipment) -> str:
     # Normaliza e ordena por data crescente
     sorted_maints = sorted(
         equipment.maintenances,
-        key=lambda m: (m.maintenance_date or datetime.min.replace(tzinfo=timezone.utc)),
+        key=lambda m: m.maintenance_date or datetime.min.replace(tzinfo=timezone.utc),
     )
 
     lines: list[str] = []

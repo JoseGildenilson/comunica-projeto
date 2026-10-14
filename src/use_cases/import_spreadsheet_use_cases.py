@@ -1,4 +1,5 @@
 """Casos de uso para pré-visualização e execução de importação de planilhas."""
+
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from src.domain.models import Equipment, EquipmentTag, EquipmentMaintenance
@@ -20,7 +21,7 @@ class PreviewSpreadsheetUseCase:
 
     def execute(self, file_bytes: bytes, filename: str) -> SpreadsheetImportPreviewResponse:
         parsed = parse_spreadsheet(file_bytes, filename)
-        
+
         sample_rows: list[SpreadsheetRowPreview] = []
         for r in parsed.rows[:10]:
             sample_rows.append(
@@ -33,7 +34,9 @@ class PreviewSpreadsheetUseCase:
                     patrimony_number=r.patrimony_number,
                     serial_number=r.serial_number,
                     brand=r.brand,
-                    last_maintenance_at=r.last_maintenance_at.strftime("%d/%m/%Y") if r.last_maintenance_at else None,
+                    last_maintenance_at=r.last_maintenance_at.strftime("%d/%m/%Y")
+                    if r.last_maintenance_at
+                    else None,
                     windows_key=r.windows_key,
                     product_number=r.product_number,
                     hist_mov=r.hist_mov,
@@ -41,7 +44,7 @@ class PreviewSpreadsheetUseCase:
                     notes=r.notes,
                 )
             )
-            
+
         return SpreadsheetImportPreviewResponse(
             filename=parsed.filename,
             total_rows=len(parsed.rows),
@@ -62,7 +65,7 @@ class ExecuteSpreadsheetImportUseCase:
 
     def execute(self, file_bytes: bytes, filename: str) -> SpreadsheetImportResultResponse:
         parsed = parse_spreadsheet(file_bytes, filename)
-        
+
         if not parsed.rows:
             return SpreadsheetImportResultResponse(
                 success=True,
@@ -78,7 +81,7 @@ class ExecuteSpreadsheetImportUseCase:
         # Cache em memória das tags existentes para otimização
         all_tags = self.tag_repo.list_all()
         existing_tags = {(t.category, t.name.lower()): t for t in all_tags}
-        
+
         tags_created_count = 0
 
         def ensure_tag(category: str, name: str) -> None:
@@ -121,12 +124,14 @@ class ExecuteSpreadsheetImportUseCase:
                     equipment.product_number = row.product_number or equipment.product_number
                     equipment.windows_key = row.windows_key or equipment.windows_key
                     equipment.notes = row.notes or equipment.notes
-                    equipment.last_maintenance_at = row.last_maintenance_at or equipment.last_maintenance_at
+                    equipment.last_maintenance_at = (
+                        row.last_maintenance_at or equipment.last_maintenance_at
+                    )
                     if row.patrimony_number and not equipment.patrimony_number:
                         equipment.patrimony_number = row.patrimony_number
                     if row.serial_number and not equipment.serial_number:
                         equipment.serial_number = row.serial_number
-                        
+
                     updated_count += 1
                 else:
                     # Cria novo equipamento
@@ -162,7 +167,7 @@ class ExecuteSpreadsheetImportUseCase:
                     maintenances_created_count += 1
 
             self.db.commit()
-            
+
             return SpreadsheetImportResultResponse(
                 success=True,
                 total_rows=len(parsed.rows),

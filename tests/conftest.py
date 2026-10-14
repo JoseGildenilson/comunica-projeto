@@ -1,4 +1,5 @@
 """Fixtures do Pytest para isolamento e testes da aplicação."""
+import os
 import pytest
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy import create_engine
@@ -9,15 +10,19 @@ from src.core.security import hash_password
 from src.domain.models import User
 from src.main import app
 
-# Utiliza banco SQLite em memória com StaticPool para compartilhar a mesma instância nos testes de API
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+# Suporta conexão com PostgreSQL via TEST_DATABASE_URL com fallback para SQLite em memória
+TEST_DB_URL = os.getenv("TEST_DATABASE_URL")
+if TEST_DB_URL and not TEST_DB_URL.startswith("sqlite"):
+    engine = create_engine(TEST_DB_URL, pool_pre_ping=True)
+else:
+    SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 
 
 @pytest.fixture

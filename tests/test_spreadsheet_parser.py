@@ -110,7 +110,7 @@ def test_parse_excel_valid():
 
     excel_bytes = create_mock_excel(
         sheet_name="Ativos Patrimônio",
-        rows=[headers, row1, row_empty_ident, blank_row]
+        rows=[headers, row1, blank_row, row_empty_ident]
     )
 
     parsed = parse_spreadsheet(excel_bytes, "inventario.xlsx")
@@ -203,3 +203,46 @@ def test_parse_csv_no_headers():
     from src.infrastructure import spreadsheet_parser
     with pytest.raises(ValueError, match="O arquivo CSV está vazio"):
         spreadsheet_parser._parse_csv(b"\n\n", "teste.csv")
+
+
+def test_parse_csv_sniffer_fallback_single_column_comma():
+    csv_content = (
+        "TIPO DE EQUIPAMENTO\n"
+        "COMPUTADOR\n"
+        "NOTEBOOK\n"
+    )
+    parsed = parse_spreadsheet(csv_content.encode("utf-8"), "single_col.csv")
+    assert len(parsed.rows) == 2
+    assert parsed.rows[0].equipment_type == "COMPUTADOR"
+    assert parsed.rows[1].equipment_type == "NOTEBOOK"
+
+
+def test_parse_csv_sniffer_fallback_semicolon(monkeypatch):
+    import csv
+    csv_content = (
+        "TIPO DE EQUIPAMENTO;MARCA\n"
+        "DESKTOP;DELL\n"
+    )
+
+    def fake_sniff(*args, **kwargs):
+        raise csv.Error("Sniffer failed")
+
+    monkeypatch.setattr(csv.Sniffer, "sniff", fake_sniff)
+    parsed = parse_spreadsheet(csv_content.encode("utf-8"), "fallback_semi.csv")
+    assert len(parsed.rows) == 1
+    assert parsed.rows[0].equipment_type == "DESKTOP"
+    assert parsed.rows[0].brand == "DELL"
+
+
+def test_parse_excel_partial_headers_and_short_row():
+    excel_bytes = create_mock_excel(
+        sheet_name="Resumido",
+        rows=[["TIPO DE EQUIPAMENTO", "LOCALIZAÇÃO"], ["NOTEBOOK"]]
+    )
+    parsed = parse_spreadsheet(excel_bytes, "resumo.xlsx")
+    assert len(parsed.rows) == 1
+    assert parsed.rows[0].equipment_type == "NOTEBOOK"
+    assert parsed.rows[0].location == "GERAL"
+    assert parsed.rows[0].patrimony_number is None
+
+

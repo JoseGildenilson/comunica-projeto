@@ -1,4 +1,5 @@
 """Caso de uso para autenticação de usuário com controle de rate limit e auditoria."""
+
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 from src.core.security import verify_password, create_access_token, create_refresh_token
@@ -8,13 +9,18 @@ from src.infrastructure.repositories import UserRepository, LoginAttemptReposito
 
 class RateLimitExceededException(Exception):
     """Exceção lançada quando o limite de tentativas de login é excedido por IP (HTTP 429)."""
-    def __init__(self, message: str = "Acesso temporariamente bloqueado por motivos de segurança devido ao excesso de tentativas malsucedidas."):
+
+    def __init__(
+        self,
+        message: str = "Acesso temporariamente bloqueado por motivos de segurança devido ao excesso de tentativas malsucedidas.",
+    ):
         self.message = message
         super().__init__(self.message)
 
 
 class InvalidCredentialsException(Exception):
     """Exceção genérica lançada quando as credenciais fornecidas são inválidas (HTTP 401)."""
+
     def __init__(self, message: str = "Credenciais de acesso inválidas."):
         self.message = message
         super().__init__(self.message)
@@ -30,7 +36,7 @@ class AuthenticateUserUseCase:
 
     def execute(self, email: str, password: str, ip_address: str) -> Dict[str, Any]:
         """Executa a validação do login, aplicação de rate limit e emissão de tokens.
-        
+
         Em conformidade com as regras da Constituição:
         - Controla a transação unificada no nível deste caso de uso.
         - Registra a tentativa por IP no banco de dados.
@@ -38,7 +44,9 @@ class AuthenticateUserUseCase:
         - Lança exceção genérica (401) sem expor campo específico se inválido.
         """
         # 1. Verifica taxa de tentativas malsucedidas por IP (RN-02)
-        failed_count = self.login_attempt_repo.count_recent_failed_attempts(ip_address, window_minutes=15)
+        failed_count = self.login_attempt_repo.count_recent_failed_attempts(
+            ip_address, window_minutes=15
+        )
         if failed_count >= 10:
             raise RateLimitExceededException()
 
@@ -47,9 +55,7 @@ class AuthenticateUserUseCase:
 
         # 3. Valida credenciais (existência de usuário, status ativo e hash da senha)
         is_valid = (
-            user is not None
-            and user.is_active
-            and verify_password(password, user.hashed_password)
+            user is not None and user.is_active and verify_password(password, user.hashed_password)
         )
 
         if not is_valid:

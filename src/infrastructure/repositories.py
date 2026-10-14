@@ -3,6 +3,7 @@
 Nota: Em cumprimento à Constituição, os repositórios NÃO executam commit ou rollback.
 O controle de transação é feito no nível do caso de uso ou rota HTTP.
 """
+
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, update, func, or_, desc, asc
 from sqlalchemy.orm import Session, selectinload
@@ -69,13 +70,10 @@ class LoginAttemptRepository:
     def count_recent_failed_attempts(self, ip_address: str, window_minutes: int = 15) -> int:
         """Conta tentativas malsucedidas de um IP na janela de tempo especificada."""
         cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
-        stmt = (
-            select(func.count(LoginAttempt.id))
-            .where(
-                LoginAttempt.ip_address == ip_address,
-                LoginAttempt.success.is_(False),
-                LoginAttempt.attempted_at >= cutoff_time,
-            )
+        stmt = select(func.count(LoginAttempt.id)).where(
+            LoginAttempt.ip_address == ip_address,
+            LoginAttempt.success.is_(False),
+            LoginAttempt.attempted_at >= cutoff_time,
         )
         count = self.db.execute(stmt).scalar()
         return count or 0
@@ -102,18 +100,24 @@ class EquipmentRepository:
         stmt = select(Equipment).where(Equipment.id == equipment_id)
         return self.db.execute(stmt).scalar_one_or_none()
 
-    def get_by_serial_number(self, serial_number: str) -> Equipment | None:
+    def get_by_serial_number(self, serial_number: str | None) -> Equipment | None:
         """Busca equipamento por Nº de Série."""
+        if not serial_number or not str(serial_number).strip():
+            return None
         stmt = select(Equipment).where(Equipment.serial_number == serial_number)
         return self.db.execute(stmt).scalar_one_or_none()
 
-    def get_by_patrimony_number(self, patrimony_number: str) -> Equipment | None:
+    def get_by_patrimony_number(self, patrimony_number: str | None) -> Equipment | None:
         """Busca equipamento por Nº de Patrimônio."""
+        if not patrimony_number or not str(patrimony_number).strip():
+            return None
         stmt = select(Equipment).where(Equipment.patrimony_number == patrimony_number)
         return self.db.execute(stmt).scalar_one_or_none()
 
-    def get_by_hostname(self, hostname: str) -> Equipment | None:
+    def get_by_hostname(self, hostname: str | None) -> Equipment | None:
         """Busca equipamento por Hostname."""
+        if not hostname or not str(hostname).strip():
+            return None
         stmt = select(Equipment).where(Equipment.hostname == hostname)
         return self.db.execute(stmt).scalar_one_or_none()
 
@@ -150,7 +154,9 @@ class EquipmentRepository:
 
         patrimonies = normalize_list(patrimony_number)
         if patrimonies:
-            query = query.where(or_(*[Equipment.patrimony_number.ilike(f"%{p}%") for p in patrimonies]))
+            query = query.where(
+                or_(*[Equipment.patrimony_number.ilike(f"%{p}%") for p in patrimonies])
+            )
 
         serials = normalize_list(serial_number)
         if serials:
@@ -158,7 +164,9 @@ class EquipmentRepository:
 
         products = normalize_list(product_number)
         if products:
-            query = query.where(or_(*[Equipment.product_number.ilike(f"%{pr}%") for pr in products]))
+            query = query.where(
+                or_(*[Equipment.product_number.ilike(f"%{pr}%") for pr in products])
+            )
 
         # Busca geral em múltiplos campos
         if search:
@@ -277,7 +285,6 @@ class EquipmentRepository:
         return [r for r in results if r]
 
 
-
 class EquipmentTagRepository:
     """Repositório para gerenciamento das tags dinâmicas."""
 
@@ -322,7 +329,11 @@ class EquipmentTagRepository:
     def propagate_tag_rename(self, category: str, old_name: str, new_name: str) -> None:
         """Atualiza o nome da tag em todos os equipamentos que utilizam o valor antigo."""
         if category == "tipo":
-            stmt = update(Equipment).where(Equipment.equipment_type == old_name).values(equipment_type=new_name)
+            stmt = (
+                update(Equipment)
+                .where(Equipment.equipment_type == old_name)
+                .values(equipment_type=new_name)
+            )
             self.db.execute(stmt)
         elif category == "localizacao":
             stmt = update(Equipment).where(Equipment.location == old_name).values(location=new_name)

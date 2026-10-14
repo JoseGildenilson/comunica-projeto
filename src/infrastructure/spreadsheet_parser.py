@@ -1,4 +1,5 @@
 """Utilitário para leitura, parsing e sanitização de planilhas de equipamentos (.xlsx / .csv)."""
+
 import csv
 import io
 import re
@@ -12,6 +13,7 @@ import openpyxl
 @dataclass
 class ParsedSpreadsheetRow:
     """Representação estruturada de uma linha de equipamento parseada."""
+
     row_number: int
     equipment_type: str
     location: str
@@ -31,6 +33,7 @@ class ParsedSpreadsheetRow:
 @dataclass
 class ParsedSpreadsheet:
     """Resultado do parsing completo da planilha."""
+
     filename: str
     detected_sheet: str | None
     headers: list[str]
@@ -53,23 +56,51 @@ def _normalize_header(header: str | None) -> str:
 def _map_headers(raw_headers: list[Any]) -> dict[str, int]:
     """Mapeia os cabeçalhos encontrados para os campos canônicos do sistema."""
     mapping: dict[str, int] = {}
-    
+
     canonical_patterns: dict[str, list[str]] = {
         "equipment_type": ["tipo", "tipodeequipamento", "categoria"],
         "location": ["localizacao", "local", "setor", "unidade"],
         "status": ["situacao", "status", "estado"],
         "description": ["descricao", "especificacao", "equipamento", "modelo"],
-        "patrimony_number": ["npatrimonio", "nopatrimonio", "numeropatrimonio", "patrimonio", "tombo", "ntombo", "notombo"],
-        "serial_number": ["nserie", "noserie", "numeroserie", "serie", "serial", "serialnumber", "ns"],
+        "patrimony_number": [
+            "npatrimonio",
+            "nopatrimonio",
+            "numeropatrimonio",
+            "patrimonio",
+            "tombo",
+            "ntombo",
+            "notombo",
+        ],
+        "serial_number": [
+            "nserie",
+            "noserie",
+            "numeroserie",
+            "serie",
+            "serial",
+            "serialnumber",
+            "ns",
+        ],
         "brand": ["marca", "fabricante"],
-        "last_maintenance_at": ["ultimamanutencao", "datamanutencao", "manutencao", "ultimaintervencao"],
+        "last_maintenance_at": [
+            "ultimamanutencao",
+            "datamanutencao",
+            "manutencao",
+            "ultimaintervencao",
+        ],
         "windows_key": ["chavewindows", "licencawindows", "chave", "licenca", "windowskey"],
         "product_number": ["nproduto", "noproduto", "numeroproduto", "pn", "partnumber", "produto"],
-        "hist_mov": ["historicodemovimentacoes", "historicodemovimentacao", "historicomovimentacoes", "historico", "movimentacoes", "intervencoes"],
+        "hist_mov": [
+            "historicodemovimentacoes",
+            "historicodemovimentacao",
+            "historicomovimentacoes",
+            "historico",
+            "movimentacoes",
+            "intervencoes",
+        ],
         "hostname": ["hostname", "host", "nomered"],
         "notes": ["observacoes", "observacao", "obs", "comentarios", "notas"],
     }
-    
+
     for idx, raw_h in enumerate(raw_headers):
         if raw_h is None:
             continue
@@ -80,7 +111,7 @@ def _map_headers(raw_headers: list[Any]) -> dict[str, int]:
             if field not in mapping and any(p in norm_h or norm_h in p for p in patterns):
                 mapping[field] = idx
                 break
-                
+
     return mapping
 
 
@@ -100,11 +131,11 @@ def _parse_datetime(value: Any) -> datetime | None:
         if value.tzinfo is None:
             return value.replace(tzinfo=timezone.utc)
         return value.astimezone(timezone.utc)
-    
+
     val_str = str(value).strip()
     if not val_str:
         return None
-        
+
     date_formats = [
         "%d/%m/%Y",
         "%d/%m/%Y %H:%M:%S",
@@ -114,14 +145,14 @@ def _parse_datetime(value: Any) -> datetime | None:
         "%d.%m.%Y",
         "%Y/%m/%d",
     ]
-    
+
     for fmt in date_formats:
         try:
             dt = datetime.strptime(val_str, fmt)
             return dt.replace(tzinfo=timezone.utc)
         except ValueError:
             continue
-            
+
     return None
 
 
@@ -132,9 +163,9 @@ def parse_spreadsheet(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
     """
     if not file_bytes:
         raise ValueError("O arquivo enviado está vazio.")
-        
+
     lower_filename = filename.lower()
-    
+
     if lower_filename.endswith((".xlsx", ".xlsm", ".xltx", ".xltm", ".xls")):
         return _parse_excel(file_bytes, filename)
     elif lower_filename.endswith(".csv"):
@@ -151,10 +182,10 @@ def _parse_excel(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
         wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
     except Exception as exc:
         raise ValueError(f"Não foi possível abrir o arquivo Excel: {str(exc)}") from exc
-        
+
     if not wb.sheetnames:
         raise ValueError("A planilha Excel não contém abas.")
-        
+
     # Procura aba 'Patrimônio' prioritariamente
     target_sheet_name = wb.sheetnames[0]
     for s_name in wb.sheetnames:
@@ -162,31 +193,31 @@ def _parse_excel(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
         if "patrimonio" in norm_s or "ativo" in norm_s or "equipamento" in norm_s:
             target_sheet_name = s_name
             break
-            
+
     sheet = wb[target_sheet_name]
     rows_iter = sheet.iter_rows(values_only=True)
-    
+
     try:
         first_row = next(rows_iter)
     except StopIteration:
         raise ValueError(f"A aba '{target_sheet_name}' está vazia.")
-        
+
     raw_headers = list(first_row)
     header_mapping = _map_headers(raw_headers)
-    
+
     headers_display = [str(h).strip() for h in raw_headers if h is not None and str(h).strip()]
     parsed_rows: list[ParsedSpreadsheetRow] = []
-    
+
     for row_idx, row_values in enumerate(rows_iter, start=2):
         if not any(v is not None and str(v).strip() for v in row_values):
             continue
-            
+
         def get_val(field: str) -> Any:
             idx = header_mapping.get(field)
             if idx is not None and idx < len(row_values):
                 return row_values[idx]
             return None
-            
+
         eq_type = _clean_str(get_val("equipment_type")) or "OUTROS"
         loc = _clean_str(get_val("location")) or "GERAL"
         status = _clean_str(get_val("status")) or "Em uso"
@@ -200,7 +231,7 @@ def _parse_excel(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
         last_maint = _parse_datetime(get_val("last_maintenance_at"))
         hist_mov = _clean_str(get_val("hist_mov"))
         notes = _clean_str(get_val("notes"))
-        
+
         parsed_rows.append(
             ParsedSpreadsheetRow(
                 row_number=row_idx,
@@ -219,7 +250,7 @@ def _parse_excel(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
                 notes=notes,
             )
         )
-        
+
     return ParsedSpreadsheet(
         filename=filename,
         detected_sheet=target_sheet_name,
@@ -238,14 +269,14 @@ def _parse_csv(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
             break
         except UnicodeDecodeError:
             continue
-            
+
     if content_str is None:
         raise ValueError("Não foi possível decodificar o arquivo CSV com codificações suportadas.")
-        
+
     lines = [line for line in content_str.splitlines() if line.strip()]
     if not lines:
         raise ValueError("O arquivo CSV está vazio.")
-        
+
     # Detecta delimitador
     sample = "\n".join(lines[:5])
     try:
@@ -253,24 +284,24 @@ def _parse_csv(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
         delimiter = dialect.delimiter
     except Exception:
         delimiter = ";" if ";" in lines[0] else ","
-        
+
     reader = csv.reader(lines, delimiter=delimiter)
     raw_headers = next(reader)
-        
+
     header_mapping = _map_headers(raw_headers)
     headers_display = [str(h).strip() for h in raw_headers if str(h).strip()]
     parsed_rows: list[ParsedSpreadsheetRow] = []
-    
+
     for row_idx, row_values in enumerate(reader, start=2):
         if not any(v.strip() for v in row_values):
             continue
-            
+
         def get_val(field: str) -> Any:
             idx = header_mapping.get(field)
             if idx is not None and idx < len(row_values):
                 return row_values[idx]
             return None
-            
+
         eq_type = _clean_str(get_val("equipment_type")) or "OUTROS"
         loc = _clean_str(get_val("location")) or "GERAL"
         status = _clean_str(get_val("status")) or "Em uso"
@@ -284,7 +315,7 @@ def _parse_csv(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
         last_maint = _parse_datetime(get_val("last_maintenance_at"))
         hist_mov = _clean_str(get_val("hist_mov"))
         notes = _clean_str(get_val("notes"))
-        
+
         parsed_rows.append(
             ParsedSpreadsheetRow(
                 row_number=row_idx,
@@ -303,7 +334,7 @@ def _parse_csv(file_bytes: bytes, filename: str) -> ParsedSpreadsheet:
                 notes=notes,
             )
         )
-        
+
     return ParsedSpreadsheet(
         filename=filename,
         detected_sheet=None,

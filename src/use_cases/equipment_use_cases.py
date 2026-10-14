@@ -1,4 +1,5 @@
 """Casos de uso de negócio para Gestão de Equipamentos (Patrimônio)."""
+
 import math
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -33,26 +34,43 @@ class CreateEquipmentUseCase:
         self.repo = EquipmentRepository(db)
 
     def execute(self, data: EquipmentCreate) -> Equipment:
+        # Normalização de campos opcionais: "" ou whitespace normaliza para None
+        serial_number = (
+            str(data.serial_number).strip()
+            if data.serial_number and str(data.serial_number).strip()
+            else None
+        )
+        patrimony_number = (
+            str(data.patrimony_number).strip()
+            if data.patrimony_number and str(data.patrimony_number).strip()
+            else None
+        )
+        hostname = (
+            str(data.hostname).strip() if data.hostname and str(data.hostname).strip() else None
+        )
+
         # Validação de unicidade do Nº de Série
-        if self.repo.get_by_serial_number(data.serial_number):
-            raise ValueError(f"Número de série '{data.serial_number}' já está cadastrado no sistema.")
+        if serial_number and self.repo.get_by_serial_number(serial_number):
+            raise ValueError(f"Número de série '{serial_number}' já está cadastrado no sistema.")
 
         # Validação de unicidade do Nº de Patrimônio (se informado)
-        if data.patrimony_number and self.repo.get_by_patrimony_number(data.patrimony_number):
-            raise ValueError(f"Número de patrimônio '{data.patrimony_number}' já está cadastrado no sistema.")
+        if patrimony_number and self.repo.get_by_patrimony_number(patrimony_number):
+            raise ValueError(
+                f"Número de patrimônio '{patrimony_number}' já está cadastrado no sistema."
+            )
 
         # Validação de unicidade do Hostname (se informado)
-        if data.hostname and self.repo.get_by_hostname(data.hostname):
-            raise ValueError(f"Hostname '{data.hostname}' já está cadastrado no sistema.")
+        if hostname and self.repo.get_by_hostname(hostname):
+            raise ValueError(f"Hostname '{hostname}' já está cadastrado no sistema.")
 
         equipment = Equipment(
-            serial_number=data.serial_number,
+            serial_number=serial_number,
             description=data.description,
             equipment_type=data.equipment_type,
             location=data.location,
             status=data.status,
-            patrimony_number=data.patrimony_number,
-            hostname=data.hostname,
+            patrimony_number=patrimony_number,
+            hostname=hostname,
             brand=data.brand,
             product_number=data.product_number,
             windows_key=data.windows_key,
@@ -134,21 +152,41 @@ class UpdateEquipmentUseCase:
         if not equipment:
             raise KeyError(f"Equipamento com ID {equipment_id} não foi encontrado.")
 
-        # Validações de unicidade se houver alteração
-        if data.serial_number and data.serial_number != equipment.serial_number:
-            if self.repo.get_by_serial_number(data.serial_number):
-                raise ValueError(f"Número de série '{data.serial_number}' já está cadastrado no sistema.")
-            equipment.serial_number = data.serial_number
+        # Validações de unicidade e atualização de campos identificadores
+        if "serial_number" in data.model_fields_set:
+            if not data.serial_number or not str(data.serial_number).strip():
+                equipment.serial_number = None
+            else:
+                val = str(data.serial_number).strip()
+                if val != equipment.serial_number:
+                    existing = self.repo.get_by_serial_number(val)
+                    if existing and existing.id != equipment.id:
+                        raise ValueError(f"Número de série '{val}' já está cadastrado no sistema.")
+                    equipment.serial_number = val
 
-        if data.patrimony_number and data.patrimony_number != equipment.patrimony_number:
-            if self.repo.get_by_patrimony_number(data.patrimony_number):
-                raise ValueError(f"Número de patrimônio '{data.patrimony_number}' já está cadastrado no sistema.")
-            equipment.patrimony_number = data.patrimony_number
+        if "patrimony_number" in data.model_fields_set:
+            if not data.patrimony_number or not str(data.patrimony_number).strip():
+                equipment.patrimony_number = None
+            else:
+                val = str(data.patrimony_number).strip()
+                if val != equipment.patrimony_number:
+                    existing = self.repo.get_by_patrimony_number(val)
+                    if existing and existing.id != equipment.id:
+                        raise ValueError(
+                            f"Número de patrimônio '{val}' já está cadastrado no sistema."
+                        )
+                    equipment.patrimony_number = val
 
-        if data.hostname and data.hostname != equipment.hostname:
-            if self.repo.get_by_hostname(data.hostname):
-                raise ValueError(f"Hostname '{data.hostname}' já está cadastrado no sistema.")
-            equipment.hostname = data.hostname
+        if "hostname" in data.model_fields_set:
+            if not data.hostname or not str(data.hostname).strip():
+                equipment.hostname = None
+            else:
+                val = str(data.hostname).strip()
+                if val != equipment.hostname:
+                    existing = self.repo.get_by_hostname(val)
+                    if existing and existing.id != equipment.id:
+                        raise ValueError(f"Hostname '{val}' já está cadastrado no sistema.")
+                    equipment.hostname = val
 
         # Atualização dos demais campos
         if data.description is not None:
@@ -159,15 +197,15 @@ class UpdateEquipmentUseCase:
             equipment.location = data.location
         if data.status is not None:
             equipment.status = data.status
-        if data.brand is not None:
+        if "brand" in data.model_fields_set:
             equipment.brand = data.brand
-        if data.product_number is not None:
+        if "product_number" in data.model_fields_set:
             equipment.product_number = data.product_number
-        if data.windows_key is not None:
+        if "windows_key" in data.model_fields_set:
             equipment.windows_key = data.windows_key
-        if data.last_maintenance_at is not None:
+        if "last_maintenance_at" in data.model_fields_set:
             equipment.last_maintenance_at = data.last_maintenance_at
-        if data.notes is not None:
+        if "notes" in data.model_fields_set:
             equipment.notes = data.notes
 
         self.db.flush()
@@ -254,7 +292,9 @@ class UpdateMaintenanceUseCase:
 
         maintenance = self.maint_repo.get_by_id(maintenance_id)
         if not maintenance or maintenance.equipment_id != equipment_id:
-            raise KeyError(f"Manutenção com ID {maintenance_id} não foi encontrada para este equipamento.")
+            raise KeyError(
+                f"Manutenção com ID {maintenance_id} não foi encontrada para este equipamento."
+            )
 
         if maintenance_date is not None:
             maintenance.maintenance_date = maintenance_date
@@ -266,7 +306,9 @@ class UpdateMaintenanceUseCase:
             maintenance.notes = notes
 
         maintenances = self.maint_repo.list_by_equipment(equipment_id)
-        equipment.last_maintenance_at = max((m.maintenance_date for m in maintenances), default=None)
+        equipment.last_maintenance_at = max(
+            (m.maintenance_date for m in maintenances), default=None
+        )
 
         self.db.flush()
         return maintenance
@@ -287,7 +329,9 @@ class DeleteMaintenanceUseCase:
 
         maintenance = self.maint_repo.get_by_id(maintenance_id)
         if not maintenance or maintenance.equipment_id != equipment_id:
-            raise KeyError(f"Manutenção com ID {maintenance_id} não foi encontrada para este equipamento.")
+            raise KeyError(
+                f"Manutenção com ID {maintenance_id} não foi encontrada para este equipamento."
+            )
 
         self.maint_repo.delete(maintenance)
         self.db.flush()
@@ -319,7 +363,9 @@ class ManageTagsUseCase:
 
         existing = self.tag_repo.get_by_category_and_name(data.category, clean_name)
         if existing:
-            raise ValueError(f"Tag '{clean_name}' já está cadastrada na categoria '{data.category}'.")
+            raise ValueError(
+                f"Tag '{clean_name}' já está cadastrada na categoria '{data.category}'."
+            )
 
         tag = EquipmentTag(category=data.category, name=clean_name)
         self.tag_repo.create(tag)
@@ -418,6 +464,3 @@ class ExportEquipmentsUseCase:
         now_str = datetime.now().strftime("%Y-%m-%d_%H%M")
         filename = f"PATRIMONIO_{now_str}.xlsx"
         return excel_bytes, filename
-
-
-
