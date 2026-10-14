@@ -25,6 +25,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # equipments may already be dropped by the b2c3d4e5f6a7 downgrade
+    if 'equipments' not in sa.inspect(op.get_bind()).get_table_names():
+        return
     with op.batch_alter_table('equipments') as batch_op:
         batch_op.alter_column('serial_number',
                               existing_type=sa.String(length=255),

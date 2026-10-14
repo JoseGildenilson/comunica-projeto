@@ -85,6 +85,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # equipments may already be dropped by the b2c3d4e5f6a7 downgrade
+    if 'equipments' not in sa.inspect(op.get_bind()).get_table_names():
+        return
     op.drop_index(op.f('ix_equipment_maintenances_equipment_id'), table_name='equipment_maintenances')
     op.drop_table('equipment_maintenances')
     op.drop_index(op.f('ix_equipment_movements_equipment_id'), table_name='equipment_movements')
