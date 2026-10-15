@@ -439,3 +439,30 @@ class SpreadsheetImportResultResponse(BaseModel):
     maintenances_created_count: int
     errors: list[str] = []
     message: str
+
+
+# --- Schemas de Tags Legadas / Catálogos Adaptados ---
+
+
+class TagResponse(BaseModel):
+    """Schema para tags de equipamentos mapeadas aos catálogos."""
+
+    id: int
+    category: str
+    name: str
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TagCreate(BaseModel):
+    """Schema para criação de tag associada a categoria."""
+
+    category: str
+    name: str
+
+
+class TagUpdate(BaseModel):
+    """Schema para atualização do nome de uma tag."""
+
+    name: str

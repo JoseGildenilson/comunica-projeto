@@ -125,4 +125,37 @@ describe('Componente MovementModal', () => {
       expect(onClose).toHaveBeenCalled();
     });
   });
+
+  it('Cancela criação inline ao pressionar Escape e exibe erro ao falhar submissão', async () => {
+    vi.mocked(equipmentApi.recordMovement).mockRejectedValueOnce({
+      response: { data: { detail: 'Origem igual ao destino.' } },
+    });
+
+    render(
+      <MovementModal
+        isOpen={true}
+        equipmentId={1}
+        currentLocation="TI"
+        locations={mockLocations}
+        onClose={onClose}
+        onSuccess={onSuccess}
+      />
+    );
+
+    // Abrir input e cancelar com Escape
+    const createBtn = screen.getByTestId('inline-create-location-btn');
+    fireEvent.click(createBtn);
+    const input = screen.getByPlaceholderText('Nova localização');
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByPlaceholderText('Nova localização')).not.toBeInTheDocument();
+
+    // Submeter com erro
+    const submitBtn = screen.getByText('Salvar Movimentação');
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Origem igual ao destino.')).toBeInTheDocument();
+    });
+  });
 });
+

@@ -84,6 +84,16 @@ def _format_date(dt: datetime | None) -> str:
     return dt.strftime("%d/%m/%Y")
 
 
+def _sanitize_formula_value(val: str | None) -> str:
+    """Sanitiza strings para prevenir vulnerabilidade de CSV / Formula Injection (CWE-1236)."""
+    if val is None:
+        return ""
+    val_str = str(val)
+    if val_str.startswith(("=", "+", "-", "@")):
+        return f"'{val_str}"
+    return val_str
+
+
 def generate_equipments_excel(equipments: list[Equipment]) -> bytes:
     """
     Gera uma planilha Excel (.xlsx) contendo a aba 'Patrimônio' estilizada
@@ -132,7 +142,7 @@ def generate_equipments_excel(equipments: list[Equipment]) -> bytes:
         sector_name = eq.sector.name if eq.sector else ""
         status_name = eq.status.name if eq.status else ""
 
-        row_values = [
+        raw_row_values = [
             type_name,
             sector_name,
             status_name,
@@ -147,6 +157,8 @@ def generate_equipments_excel(equipments: list[Equipment]) -> bytes:
             eq.hostname or "",
             eq.notes or "",
         ]
+
+        row_values = [_sanitize_formula_value(val) for val in raw_row_values]
 
         for col_idx, val in enumerate(row_values, start=1):
             cell = ws.cell(row=row_idx, column=col_idx, value=val)

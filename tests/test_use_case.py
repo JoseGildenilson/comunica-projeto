@@ -74,19 +74,42 @@ def test_authenticate_user_rate_limit_exceeded(db_session: Session):
     use_case = AuthenticateUserUseCase(db_session)
     test_ip = "10.0.0.50"
 
-    # Simula 10 falhas consecutivas para o IP
-    for _ in range(10):
+    # Simula 10 falhas consecutivas para o mesmo IP com emails distintos
+    for i in range(10):
         with pytest.raises(InvalidCredentialsException):
             use_case.execute(
-                email="errado@empresa.com",
+                email=f"errado_{i}@empresa.com",
                 password="SenhaIncorreta",
                 ip_address=test_ip,
             )
 
-    # A 11ª tentativa deve ser bloqueada por Rate Limit
+    # A 11ª tentativa a partir do mesmo IP deve ser bloqueada por Rate Limit
     with pytest.raises(RateLimitExceededException):
         use_case.execute(
             email="qualquer@empresa.com",
             password="SenhaQualquer",
             ip_address=test_ip,
+        )
+
+
+def test_authenticate_user_account_rate_limit_exceeded(db_session: Session):
+    """Testa bloqueio por conta após 5 tentativas consecutivas para o mesmo email (ISSUE-007)."""
+    use_case = AuthenticateUserUseCase(db_session)
+    email_alvo = "alvo@empresa.com"
+
+    # Simula 5 falhas consecutivas de IPs diferentes
+    for i in range(5):
+        with pytest.raises(InvalidCredentialsException):
+            use_case.execute(
+                email=email_alvo,
+                password="SenhaIncorreta",
+                ip_address=f"192.168.1.{i+10}",
+            )
+
+    # A 6ª tentativa para o mesmo email deve ser bloqueada
+    with pytest.raises(RateLimitExceededException):
+        use_case.execute(
+            email=email_alvo,
+            password="SenhaIncorreta",
+            ip_address="192.168.1.99",
         )

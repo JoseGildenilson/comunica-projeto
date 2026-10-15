@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from src.api.dependencies import get_current_user
 from src.core.config import settings
 from src.core.database import get_db
-from src.core.security import decode_token, create_access_token
+from src.core.security import decode_token, create_access_token, revoke_token, is_token_revoked
 from src.domain.models import User
 from src.domain.schemas import LoginRequest, TokenResponse, UserResponse, MessageResponse
 from src.infrastructure.repositories import UserRepository
@@ -152,6 +152,12 @@ def refresh(
             detail="Refresh token ausente.",
         )
 
+    if is_token_revoked(refresh_token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token inválido ou revogado.",
+        )
+
     try:
         payload = decode_token(refresh_token)
     except ValueError:
@@ -199,8 +205,20 @@ def refresh(
     response_model=MessageResponse,
     status_code=status.HTTP_200_OK,
 )
-def logout(response: Response):
-    """Endpoint HTTP para encerrar a sessão limpando os cookies HttpOnly."""
+def logout(request: Request, response: Response):
+    """Endpoint HTTP para encerrar a sessão limpando os cookies HttpOnly e revogando os tokens ativos."""
+    access_token = request.cookies.get("access_token")
+    if not access_token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            access_token = auth_header.split(" ")[1]
+    refresh_token = request.cookies.get("refresh_token")
+
+    if access_token:
+        revoke_token(access_token)
+    if refresh_token:
+        revoke_token(refresh_token)
+
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
     return MessageResponse(message="Logout realizado com sucesso.")

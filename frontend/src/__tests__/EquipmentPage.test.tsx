@@ -257,5 +257,126 @@ describe('Páginas e Componentes de Equipamentos (Frontend)', () => {
       expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:http://localhost/mock-blob-url');
     });
   });
+
+  it('Navega para detalhe ao clicar no card e aciona callbacks de modais de tags e novo equipamento', async () => {
+    (authApi.getMe as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 1,
+      email: 'tecnico@empresa.com',
+      role: 'tecnico',
+      is_active: true,
+    });
+    (equipmentApi.getTags as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 1, category: 'tipo', name: 'Notebook' },
+    ]);
+    (equipmentApi.getEquipments as ReturnType<typeof vi.fn>).mockResolvedValue({
+      items: [
+        {
+          id: 42,
+          serial_number: 'SN-42',
+          patrimony_number: 'PAT-42',
+          description: 'Notebook Dell Latitude',
+          equipment_type: 'Notebook',
+          location: 'TI',
+          status: 'Em uso',
+          created_at: '2026-08-13T00:00:00Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 25,
+      pages: 1,
+    });
+
+    render(
+      <AuthProvider>
+        <MemoryRouter initialEntries={['/equipamentos']}>
+          <Routes>
+            <Route path="/equipamentos" element={<EquipmentListPage />} />
+            <Route path="/equipamentos/:id" element={<div>Tela Detalhes 42</div>} />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>
+    );
+
+    const card = await screen.findByTestId('equipment-card-42');
+    fireEvent.click(card);
+
+    expect(await screen.findByText('Tela Detalhes 42')).toBeInTheDocument();
+  });
+
+  it('Abre e fecha os modais de Gerenciar Tags e Novo Equipamento', async () => {
+    (authApi.getMe as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 1,
+      email: 'tecnico@empresa.com',
+      role: 'tecnico',
+      is_active: true,
+    });
+    (equipmentApi.getTags as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 1, category: 'tipo', name: 'Notebook' },
+    ]);
+    (equipmentApi.getEquipments as ReturnType<typeof vi.fn>).mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      limit: 25,
+      pages: 1,
+    });
+
+    render(
+      <AuthProvider>
+        <MemoryRouter initialEntries={['/equipamentos']}>
+          <Routes>
+            <Route path="/equipamentos" element={<EquipmentListPage />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('manage-tags-btn')).toBeInTheDocument();
+    });
+
+    // Abrir Gerenciar Tags e adicionar tag para disparar onTagsUpdated (linhas 583-585)
+    vi.mocked(equipmentApi.createTag).mockResolvedValueOnce({
+      id: 99,
+      category: 'tipo',
+      name: 'Tablet Teste',
+      created_at: '2026-08-23T00:00:00Z',
+    });
+    fireEvent.click(screen.getByTestId('manage-tags-btn'));
+    expect(await screen.findByTestId('manage-tags-modal')).toBeInTheDocument();
+    const tagInput = screen.getByPlaceholderText(/Adicionar novo tipo de equipamento/i);
+    fireEvent.change(tagInput, { target: { value: 'Tablet Teste' } });
+    fireEvent.click(screen.getByTestId('add-tag-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Tag cadastrada com sucesso.')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('close-tags-modal-btn'));
+
+    // Abrir Novo Equipamento e cadastrar com sucesso para disparar onSuccess (linhas 573-575)
+    vi.mocked(equipmentApi.createEquipment).mockResolvedValueOnce({
+      id: 88,
+      serial_number: 'SN-88',
+      equipment_type: 'Desktop',
+      location: 'TI',
+      status: 'Em uso',
+      description: 'OptiPlex',
+      movements: [],
+      maintenances: [],
+      created_at: '2026-08-23T00:00:00Z',
+    });
+    fireEvent.click(screen.getByTestId('new-equipment-btn'));
+    expect(await screen.findByText('CADASTRO DE ATIVO')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('ex: SN12345678'), { target: { value: 'SN-88' } });
+    fireEvent.change(screen.getByPlaceholderText('ex: Dell OptiPlex 7090 Core i7 16GB SSD 512GB'), { target: { value: 'OptiPlex' } });
+    fireEvent.click(screen.getByRole('button', { name: /cadastrar equipamento/i }));
+
+    await waitFor(() => {
+      expect(equipmentApi.createEquipment).toHaveBeenCalled();
+    });
+  });
 });
+
+
 

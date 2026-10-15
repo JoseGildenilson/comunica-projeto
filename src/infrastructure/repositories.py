@@ -182,6 +182,19 @@ class LoginAttemptRepository:
         count = self.db.execute(stmt).scalar()
         return count or 0
 
+    def count_recent_failed_attempts_by_email(self, email: str, window_minutes: int = 15) -> int:
+        """Conta tentativas malsucedidas de um email na janela de tempo especificada (ISSUE-007)."""
+        if not email:
+            return 0
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
+        stmt = select(func.count(LoginAttempt.id)).where(
+            func.lower(LoginAttempt.email_attempted) == email.lower().strip(),
+            LoginAttempt.success.is_(False),
+            LoginAttempt.attempted_at >= cutoff_time,
+        )
+        count = self.db.execute(stmt).scalar()
+        return count or 0
+
     def record_attempt(self, ip_address: str, email_attempted: str, success: bool) -> LoginAttempt:
         """Registra uma nova tentativa de login com IP e email informado (sem commit)."""
         attempt = LoginAttempt(

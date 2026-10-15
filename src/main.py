@@ -13,13 +13,11 @@ from src.api.catalog_routes import (
     maintenance_types_router,
 )
 from src.core.config import settings
-from src.core.database import Base, engine
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Eventos de ciclo de vida da aplicação (criação de tabelas no banco de dados)."""
-    Base.metadata.create_all(bind=engine)
+    """Eventos de ciclo de vida da aplicação (migrações gerenciadas exclusivamente pelo Alembic)."""
     yield
 
 

@@ -615,13 +615,20 @@ def test_equipment_use_cases_edge_cases_and_branches(db_session: Session, test_c
         update_uc.execute(eq1.id, EquipmentUpdate(printer_identifier="PRN-EDGE-2"))
 
     # 3. MovementsUseCase
+    eq_mov = create_uc.execute(EquipmentCreate(
+        patrimony_number="PAT-EDGE-MOV",
+        serial_number="SN-EDGE-MOV",
+        equipment_type_id=test_catalogs["type"].id,
+        sector_id=test_catalogs["sector_ti"].id,
+        status_id=test_catalogs["status_em_uso"].id,
+    ))
     # Recalculate chain guard clauses
     mov_uc._recalculate_chain(99999)
-    mov_uc._recalculate_chain(eq1.id)
+    mov_uc._recalculate_chain(eq_mov.id)
 
     # Naive date e data futura
     naive_date = datetime.now()
-    mov1 = mov_uc.record_movement(eq1.id, EquipmentMovementCreate(
+    mov1 = mov_uc.record_movement(eq_mov.id, EquipmentMovementCreate(
         origin_sector_id=test_catalogs["sector_ti"].id,
         destination_sector_id=test_catalogs["sector_com"].id,
         movement_date=naive_date,
@@ -629,28 +636,28 @@ def test_equipment_use_cases_edge_cases_and_branches(db_session: Session, test_c
     assert mov1.id is not None
 
     with pytest.raises(ValueError, match="Data da movimentação não pode ser futura"):
-        mov_uc.record_movement(eq1.id, EquipmentMovementCreate(
+        mov_uc.record_movement(eq_mov.id, EquipmentMovementCreate(
             origin_sector_id=test_catalogs["sector_com"].id,
             destination_sector_id=test_catalogs["sector_dir"].id,
             movement_date=datetime.now(timezone.utc) + timedelta(minutes=15),
         ), performed_by_user_id=user.id)
 
     with pytest.raises(ValueError, match="Setor de origem ID"):
-        mov_uc.record_movement(eq1.id, EquipmentMovementCreate(
+        mov_uc.record_movement(eq_mov.id, EquipmentMovementCreate(
             origin_sector_id=99999,
             destination_sector_id=test_catalogs["sector_dir"].id,
             movement_date=datetime.now(timezone.utc),
         ), performed_by_user_id=user.id)
 
     with pytest.raises(ValueError, match="Setor de destino ID"):
-        mov_uc.record_movement(eq1.id, EquipmentMovementCreate(
+        mov_uc.record_movement(eq_mov.id, EquipmentMovementCreate(
             origin_sector_id=test_catalogs["sector_com"].id,
             destination_sector_id=99999,
             movement_date=datetime.now(timezone.utc),
         ), performed_by_user_id=user.id)
 
     # Update movement branches
-    upd_mov = mov_uc.update_movement(eq1.id, mov1.id, EquipmentMovementUpdate(
+    upd_mov = mov_uc.update_movement(eq_mov.id, mov1.id, EquipmentMovementUpdate(
         destination_sector_id=test_catalogs["sector_dir"].id,
         movement_date=datetime.now(),
         notes="Ajuste com data naive e notas",
@@ -658,21 +665,21 @@ def test_equipment_use_cases_edge_cases_and_branches(db_session: Session, test_c
     assert upd_mov.destination_sector_id == test_catalogs["sector_dir"].id
 
     with pytest.raises(ValueError, match="Data da movimentação não pode ser futura"):
-        mov_uc.update_movement(eq1.id, mov1.id, EquipmentMovementUpdate(
+        mov_uc.update_movement(eq_mov.id, mov1.id, EquipmentMovementUpdate(
             movement_date=datetime.now(timezone.utc) + timedelta(minutes=20),
         ))
 
     # Cadeia gerando origin == destination
     # mov1: TI -> DIR
     # Adicionar mov2 em data posterior com DIR -> COM
-    mov2 = mov_uc.record_movement(eq1.id, EquipmentMovementCreate(
+    mov2 = mov_uc.record_movement(eq_mov.id, EquipmentMovementCreate(
         origin_sector_id=test_catalogs["sector_dir"].id,
         destination_sector_id=test_catalogs["sector_com"].id,
         movement_date=datetime.now(timezone.utc) + timedelta(seconds=2),
     ), performed_by_user_id=user.id)
     # Agora atualizar mov1 para destino COM -> cadeia auto-ajusta mov2.origin para COM, ficando COM -> COM!
     with pytest.raises(ValueError, match="Ajuste da cadeia gerou transferência para o mesmo setor"):
-        mov_uc.update_movement(eq1.id, mov1.id, EquipmentMovementUpdate(
+        mov_uc.update_movement(eq_mov.id, mov1.id, EquipmentMovementUpdate(
             destination_sector_id=test_catalogs["sector_com"].id,
         ))
 
@@ -777,7 +784,7 @@ def test_equipment_use_cases_edge_cases_and_branches(db_session: Session, test_c
     assert comp_eq2.completed_at is not None
 
     # Update movement com origin_sector_id
-    upd_mov_orig = mov_uc.update_movement(eq1.id, mov1.id, EquipmentMovementUpdate(
+    upd_mov_orig = mov_uc.update_movement(eq_mov.id, mov1.id, EquipmentMovementUpdate(
         origin_sector_id=test_catalogs["sector_ti"].id,
     ))
     assert upd_mov_orig.origin_sector_id == test_catalogs["sector_ti"].id

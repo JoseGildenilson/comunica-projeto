@@ -1,4 +1,4 @@
-"""Testes automatizados da funcionalidade de Dashboard patrimonial (repositório, use case e API)."""
+from datetime import datetime, timezone
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.orm import Session
@@ -51,7 +51,7 @@ def seed_dashboard_data(db_session: Session, test_catalogs, create_test_user):
             equipment_type_id=type_nb.id,
             sector_id=sector_ti.id,
             status_id=status_em_uso.id,
-            deleted_at="2026-01-01 00:00:00",
+            deleted_at=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
         ),
     ]
     db_session.add_all(equipments)

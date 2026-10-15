@@ -406,4 +406,77 @@ describe('EquipmentDetailPage', () => {
       ).toBeInTheDocument();
     });
   });
+
+  it('permite criação inline de localização e situação durante a edição do equipamento', async () => {
+    vi.mocked(equipmentApi.createTag).mockResolvedValueOnce({
+      id: 10,
+      category: 'localizacao',
+      name: 'Laboratório Novo',
+      created_at: '2026-08-23T00:00:00Z',
+    });
+    vi.mocked(equipmentApi.createTag).mockResolvedValueOnce({
+      id: 11,
+      category: 'situacao',
+      name: 'Em Teste',
+      created_at: '2026-08-23T00:00:00Z',
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('edit-equipment-btn')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('edit-equipment-btn'));
+
+    // 1. Criar localização inline com Enter
+    const createLocBtn = screen.getByTestId('inline-create-localizacao-btn');
+    fireEvent.click(createLocBtn);
+    const locInput = screen.getByPlaceholderText('Nova localização...');
+    fireEvent.change(locInput, { target: { value: 'Laboratório Novo' } });
+    fireEvent.keyDown(locInput, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(equipmentApi.createTag).toHaveBeenCalledWith('localizacao', 'Laboratório Novo');
+    });
+
+    // 2. Criar situação inline, cancelar com Escape e criar novamente salvando com Enter
+    const createSitBtn = screen.getByTestId('inline-create-situacao-btn');
+    fireEvent.click(createSitBtn);
+    const sitInput = screen.getByPlaceholderText('Nova situação...');
+    fireEvent.keyDown(sitInput, { key: 'Escape' });
+    expect(screen.queryByPlaceholderText('Nova situação...')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('inline-create-situacao-btn'));
+    const sitInput2 = screen.getByPlaceholderText('Nova situação...');
+    fireEvent.change(sitInput2, { target: { value: 'Em Teste' } });
+    fireEvent.keyDown(sitInput2, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(equipmentApi.createTag).toHaveBeenCalledWith('situacao', 'Em Teste');
+    });
+
+    // 3. Criar tipo inline, cancelar com Escape e salvar com Enter
+    vi.mocked(equipmentApi.createTag).mockResolvedValueOnce({
+      id: 12,
+      category: 'tipo',
+      name: 'Tablet Corporativo',
+      created_at: '2026-08-23T00:00:00Z',
+    });
+    const createTipoBtn = screen.getByTestId('inline-create-tipo-btn');
+    fireEvent.click(createTipoBtn);
+    const tipoInput = screen.getByPlaceholderText('Novo tipo...');
+    fireEvent.keyDown(tipoInput, { key: 'Escape' });
+    expect(screen.queryByPlaceholderText('Novo tipo...')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('inline-create-tipo-btn'));
+    const tipoInput2 = screen.getByPlaceholderText('Novo tipo...');
+    fireEvent.change(tipoInput2, { target: { value: 'Tablet Corporativo' } });
+    fireEvent.keyDown(tipoInput2, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(equipmentApi.createTag).toHaveBeenCalledWith('tipo', 'Tablet Corporativo');
+    });
+  });
 });
+

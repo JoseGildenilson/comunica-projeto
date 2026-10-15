@@ -4,6 +4,8 @@ import math
 from datetime import datetime, timezone, timedelta
 from typing import Type
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.exc import StaleDataError
 from src.core.security import (
     encrypt_windows_product_key,
     decrypt_windows_product_key,
@@ -56,11 +58,11 @@ class ConflictError(Exception):
 
 
 class ManageCatalogsUseCase:
-    """Caso de uso para CRUD dos 4 catálogos estruturais."""
+    """Caso de uso para CRUD dos 4 catálogos estruturais com controle de transação no caso de uso."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, repo: CatalogsRepository | None = None):
         self.db = db
-        self.repo = CatalogsRepository(db)
+        self.repo = repo or CatalogsRepository(db)
 
     def list_items(self, model_class, include_inactive: bool = False):
         if include_inactive:
@@ -80,10 +82,18 @@ class ManageCatalogsUseCase:
             raise ValueError(
                 f"Item '{clean_name}' já está cadastrado no catálogo (unicidade permanente)."
             )
-        item = model_class(name=clean_name)
-        self.repo.create(item)
-        self.db.flush()
-        return item
+        try:
+            item = model_class(name=clean_name)
+            self.repo.create(item)
+            self.db.commit()
+            self.db.refresh(item)
+            return item
+        except IntegrityError as e:
+            self.db.rollback()
+            raise ValueError(f"Item '{clean_name}' já está cadastrado no catálogo.") from e
+        except Exception:
+            self.db.rollback()
+            raise
 
     def update_item(self, model_class, item_id: int, data: CatalogItemUpdate):
         item = self.get_item(model_class, item_id)
@@ -92,32 +102,93 @@ class ManageCatalogsUseCase:
             existing = self.repo.get_by_name_lower(model_class, clean_name)
             if existing and existing.id != item_id:
                 raise ValueError(f"Item '{clean_name}' já está cadastrado no catálogo.")
-        self.repo.update(item, clean_name)
-        self.db.flush()
-        return item
+        try:
+            self.repo.update(item, clean_name)
+            self.db.commit()
+            self.db.refresh(item)
+            return item
+        except IntegrityError as e:
+            self.db.rollback()
+            raise ValueError(f"Item '{clean_name}' já está cadastrado no catálogo.") from e
+        except Exception:
+            self.db.rollback()
+            raise
 
     def delete_item(self, model_class, item_id: int):
         item = self.get_item(model_class, item_id)
-        self.repo.soft_delete(item)
-        self.db.flush()
-        return item
+
+        # ISSUE-012: Valida se existem referências ativas antes de excluir
+        has_active_refs = False
+        if model_class == EquipmentType:
+            has_active_refs = (
+                self.db.query(Equipment.id)
+                .filter(Equipment.equipment_type_id == item_id, Equipment.deleted_at.is_(None))
+                .first()
+                is not None
+            )
+        elif model_class == Sector:
+            has_active_refs = (
+                self.db.query(Equipment.id)
+                .filter(Equipment.sector_id == item_id, Equipment.deleted_at.is_(None))
+                .first()
+                is not None
+            )
+        elif model_class == EquipmentStatus:
+            has_active_refs = (
+                self.db.query(Equipment.id)
+                .filter(Equipment.status_id == item_id, Equipment.deleted_at.is_(None))
+                .first()
+                is not None
+            )
+        elif model_class == MaintenanceType:
+            has_active_refs = (
+                self.db.query(EquipmentMaintenance.id)
+                .filter(EquipmentMaintenance.maintenance_type_id == item_id)
+                .first()
+                is not None
+            )
+
+        if has_active_refs:
+            raise ValueError(
+                f"Não é possível excluir o item '{item.name}' pois existem equipamentos ou registros associados a ele."
+            )
+
+        try:
+            self.repo.soft_delete(item)
+            self.db.commit()
+            return item
+        except Exception:
+            self.db.rollback()
+            raise
 
     def restore_item(self, model_class, item_id: int):
         item = self.repo.get_by_id(model_class, item_id)
         if not item:
             raise KeyError(f"Item com ID {item_id} não encontrado no catálogo.")
-        self.repo.restore(item)
-        self.db.flush()
-        return item
+        if item.deleted_at is None:
+            raise ValueError(f"Item com ID {item_id} já está ativo no catálogo.")
+        try:
+            self.repo.restore(item)
+            self.db.commit()
+            self.db.refresh(item)
+            return item
+        except Exception:
+            self.db.rollback()
+            raise
 
 
 class CreateEquipmentUseCase:
     """Caso de uso para cadastro de novos equipamentos com validações estritas de unicidade e vínculos."""
 
-    def __init__(self, db: Session):
+    def __init__(
+        self,
+        db: Session,
+        eq_repo: EquipmentRepository | None = None,
+        cat_repo: CatalogsRepository | None = None,
+    ):
         self.db = db
-        self.eq_repo = EquipmentRepository(db)
-        self.cat_repo = CatalogsRepository(db)
+        self.eq_repo = eq_repo or EquipmentRepository(db)
+        self.cat_repo = cat_repo or CatalogsRepository(db)
 
     def execute(self, data: EquipmentCreate) -> Equipment:
         # 1. Valida existência e status ativo dos catálogos
@@ -188,9 +259,17 @@ class CreateEquipmentUseCase:
             windows_product_key_encrypted=encrypted_windows_key,
             notes=data.notes,
         )
-        self.eq_repo.create(equipment)
-        self.db.flush()
-        return equipment
+        try:
+            self.eq_repo.create(equipment)
+            self.db.commit()
+            self.db.refresh(equipment)
+            return equipment
+        except IntegrityError as e:
+            self.db.rollback()
+            raise ConflictError("Conflito de unicidade ao cadastrar equipamento.") from e
+        except Exception:
+            self.db.rollback()
+            raise
 
 
 class ListEquipmentsUseCase:
@@ -345,12 +424,19 @@ class GetEquipmentDetailUseCase:
 class UpdateEquipmentUseCase:
     """Caso de uso para atualização de equipamentos com validação de unicidade."""
 
-    def __init__(self, db: Session):
+    def __init__(
+        self,
+        db: Session,
+        eq_repo: EquipmentRepository | None = None,
+        cat_repo: CatalogsRepository | None = None,
+    ):
         self.db = db
-        self.eq_repo = EquipmentRepository(db)
-        self.cat_repo = CatalogsRepository(db)
+        self.eq_repo = eq_repo or EquipmentRepository(db)
+        self.cat_repo = cat_repo or CatalogsRepository(db)
 
-    def execute(self, equipment_id: int, data: EquipmentUpdate) -> Equipment:
+    def execute(
+        self, equipment_id: int, data: EquipmentUpdate, performed_by_user_id: int | None = None
+    ) -> Equipment:
         equipment = self.eq_repo.get_by_id(equipment_id)
         if not equipment:
             raise KeyError(f"Equipamento com ID {equipment_id} não foi encontrado.")
@@ -371,7 +457,18 @@ class UpdateEquipmentUseCase:
             c = self.cat_repo.get_by_id(Sector, data.sector_id)
             if not c or c.deleted_at is not None:
                 raise ValueError(f"Setor ID {data.sector_id} inválido ou inativo.")
+            origin_sector_id = equipment.sector_id
             equipment.sector_id = data.sector_id
+            # ISSUE-003: Auditoria automática de alteração de setor via EquipmentMovement
+            movement = EquipmentMovement(
+                equipment_id=equipment.id,
+                origin_sector_id=origin_sector_id,
+                destination_sector_id=data.sector_id,
+                movement_date=datetime.now(timezone.utc),
+                performed_by_user_id=performed_by_user_id or 1,
+                notes="Movimentação auditada gerada automaticamente pela alteração cadastral de setor.",
+            )
+            self.db.add(movement)
 
         if data.status_id is not None and data.status_id != equipment.status_id:
             c = self.cat_repo.get_by_id(EquipmentStatus, data.status_id)
@@ -462,31 +559,46 @@ class UpdateEquipmentUseCase:
                 data.windows_product_key
             )
 
-        self.db.flush()
-        return equipment
+        try:
+            self.db.commit()
+            self.db.refresh(equipment)
+            return equipment
+        except StaleDataError as e:
+            self.db.rollback()
+            raise ConflictError("O equipamento foi modificado concorrentemente por outro usuário.") from e
+        except IntegrityError as e:
+            self.db.rollback()
+            raise ConflictError("Conflito de unicidade ao atualizar equipamento.") from e
+        except Exception:
+            self.db.rollback()
+            raise
 
 
 class DeleteEquipmentUseCase:
     """Caso de uso para exclusão lógica (soft delete) de equipamento."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, eq_repo: EquipmentRepository | None = None):
         self.db = db
-        self.eq_repo = EquipmentRepository(db)
+        self.eq_repo = eq_repo or EquipmentRepository(db)
 
     def execute(self, equipment_id: int) -> None:
         equipment = self.eq_repo.get_by_id(equipment_id)
         if not equipment:
             raise KeyError(f"Equipamento com ID {equipment_id} não foi encontrado.")
-        self.eq_repo.soft_delete(equipment)
-        self.db.flush()
+        try:
+            self.eq_repo.soft_delete(equipment)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
 
 
 class RestoreEquipmentUseCase:
     """Caso de uso para restauração de equipamento excluído com validação de colisão de identificadores ativos."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, eq_repo: EquipmentRepository | None = None):
         self.db = db
-        self.eq_repo = EquipmentRepository(db)
+        self.eq_repo = eq_repo or EquipmentRepository(db)
 
     def execute(self, equipment_id: int) -> Equipment:
         equipment = self.eq_repo.get_by_id(equipment_id, include_deleted=True)
@@ -500,9 +612,17 @@ class RestoreEquipmentUseCase:
         if conflicts:
             raise ConflictError("; ".join(conflicts))
 
-        self.eq_repo.restore(equipment)
-        self.db.flush()
-        return equipment
+        try:
+            self.eq_repo.restore(equipment)
+            self.db.commit()
+            self.db.refresh(equipment)
+            return equipment
+        except IntegrityError as e:
+            self.db.rollback()
+            raise ConflictError("Conflito de unicidade ao restaurar equipamento.") from e
+        except Exception:
+            self.db.rollback()
+            raise
 
 
 class GetDecryptedWindowsKeyUseCase:
@@ -522,11 +642,17 @@ class GetDecryptedWindowsKeyUseCase:
 class MovementsUseCase:
     """Caso de uso para encadeamento cronológico de transferências e recálculo transacional do setor."""
 
-    def __init__(self, db: Session):
+    def __init__(
+        self,
+        db: Session,
+        eq_repo: EquipmentRepository | None = None,
+        cat_repo: CatalogsRepository | None = None,
+        mov_repo: EquipmentMovementRepository | None = None,
+    ):
         self.db = db
-        self.eq_repo = EquipmentRepository(db)
-        self.cat_repo = CatalogsRepository(db)
-        self.mov_repo = EquipmentMovementRepository(db)
+        self.eq_repo = eq_repo or EquipmentRepository(db)
+        self.cat_repo = cat_repo or CatalogsRepository(db)
+        self.mov_repo = mov_repo or EquipmentMovementRepository(db)
 
     def _recalculate_chain(self, equipment_id: int) -> None:
         """Reordena por (movement_date ASC, id ASC), ajusta Origem[n] = Destino[n-1] e atualiza equipments.sector_id."""
@@ -596,12 +722,18 @@ class MovementsUseCase:
             performed_by_user_id=performed_by_user_id,
             notes=data.notes,
         )
-        self.mov_repo.create(movement)
-        self.db.flush()
+        try:
+            self.mov_repo.create(movement)
+            self.db.flush()
 
-        # Recalcula e auto-ajusta a cadeia
-        self._recalculate_chain(equipment_id)
-        return movement
+            # Recalcula e auto-ajusta a cadeia
+            self._recalculate_chain(equipment_id)
+            self.db.commit()
+            self.db.refresh(movement)
+            return movement
+        except Exception:
+            self.db.rollback()
+            raise
 
     def update_movement(
         self,
@@ -645,25 +777,32 @@ class MovementsUseCase:
         try:
             self.db.flush()
             self._recalculate_chain(equipment_id)
+            self.db.commit()
+            self.db.refresh(movement)
+            return movement
         except Exception:
             movement.origin_sector_id = old_origin
             movement.destination_sector_id = old_dest
             movement.movement_date = old_date
             movement.notes = old_notes
-            self.db.flush()
+            self.db.rollback()
             raise
-
-        return movement
 
 
 class MaintenancesUseCase:
     """Caso de uso para ciclo de vida de manutenções e transições de situação patrimonial."""
 
-    def __init__(self, db: Session):
+    def __init__(
+        self,
+        db: Session,
+        eq_repo: EquipmentRepository | None = None,
+        cat_repo: CatalogsRepository | None = None,
+        maint_repo: EquipmentMaintenanceRepository | None = None,
+    ):
         self.db = db
-        self.eq_repo = EquipmentRepository(db)
-        self.cat_repo = CatalogsRepository(db)
-        self.maint_repo = EquipmentMaintenanceRepository(db)
+        self.eq_repo = eq_repo or EquipmentRepository(db)
+        self.cat_repo = cat_repo or CatalogsRepository(db)
+        self.maint_repo = maint_repo or EquipmentMaintenanceRepository(db)
 
     def start_maintenance(
         self,
@@ -706,12 +845,19 @@ class MaintenancesUseCase:
             description=data.description,
             notes=data.notes,
         )
-        self.maint_repo.create(maintenance)
-
-        # Transição automática da situação do bem
-        equipment.status_id = in_maint_status.id
-        self.db.flush()
-        return maintenance
+        try:
+            self.maint_repo.create(maintenance)
+            # Transição automática da situação do bem
+            equipment.status_id = in_maint_status.id
+            self.db.commit()
+            self.db.refresh(maintenance)
+            return maintenance
+        except IntegrityError as e:
+            self.db.rollback()
+            raise ConflictError("Já existe uma manutenção em andamento para este equipamento.") from e
+        except Exception:
+            self.db.rollback()
+            raise
 
     def complete_maintenance(
         self,
@@ -736,7 +882,11 @@ class MaintenancesUseCase:
         if completed_at.tzinfo is None:
             completed_at = completed_at.replace(tzinfo=timezone.utc)
 
-        if completed_at < maintenance.started_at:
+        started_at = maintenance.started_at
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+
+        if completed_at < started_at:
             raise ValueError(
                 "A data/hora de conclusão não pode ser anterior ao início da manutenção."
             )
@@ -754,10 +904,15 @@ class MaintenancesUseCase:
         if data.notes is not None:
             maintenance.notes = data.notes
 
-        # Atualiza a nova situação patrimonial do equipamento
-        equipment.status_id = data.new_status_id
-        self.db.flush()
-        return maintenance
+        try:
+            # Atualiza a nova situação patrimonial do equipamento
+            equipment.status_id = data.new_status_id
+            self.db.commit()
+            self.db.refresh(maintenance)
+            return maintenance
+        except Exception:
+            self.db.rollback()
+            raise
 
     def update_maintenance(
         self,
@@ -799,8 +954,13 @@ class MaintenancesUseCase:
         if data.notes is not None:
             maintenance.notes = data.notes
 
-        self.db.flush()
-        return maintenance
+        try:
+            self.db.commit()
+            self.db.refresh(maintenance)
+            return maintenance
+        except Exception:
+            self.db.rollback()
+            raise
 
 
 class GetSuggestionsUseCase:

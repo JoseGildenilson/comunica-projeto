@@ -95,10 +95,10 @@ async def test_login_invalid_credentials(client: AsyncClient, create_test_user):
 @pytest.mark.anyio
 async def test_login_rate_limit_exceeded(client: AsyncClient):
     """Testa o bloqueio por excesso de tentativas (Rate Limit) com retorno HTTP 429."""
-    for _ in range(10):
+    for i in range(10):
         res = await client.post(
             "/api/v1/auth/login",
-            json={"email": "errado@empresa.com", "password": "SenhaIncorreta!"},
+            json={"email": f"errado_{i}@empresa.com", "password": "SenhaIncorreta!"},
         )
         assert res.status_code == 401
 

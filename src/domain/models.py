@@ -1,5 +1,3 @@
-"""Modelos ORM de domínio para o SQLAlchemy 2.0."""
-
 from datetime import datetime, timezone
 from sqlalchemy import (
     String,
@@ -9,10 +7,53 @@ from sqlalchemy import (
     ForeignKey,
     Text,
     CheckConstraint,
+    Index,
+    func,
+    text,
 )
-from sqlalchemy.dialects.postgresql import INET, MACADDR
+from sqlalchemy.types import TypeDecorator
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.core.database import Base
+
+
+class IPAddressType(TypeDecorator):
+    """Tipo agnóstico a dialeto de banco para endereços IP (PostgreSQL INET ou String fallback)."""
+
+    impl = String(45)
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            from sqlalchemy.dialects.postgresql import INET
+
+            return dialect.type_descriptor(INET())
+        return dialect.type_descriptor(String(45))
+
+    def process_bind_param(self, value, dialect):
+        return str(value) if value is not None else None
+
+    def process_result_value(self, value, dialect):
+        return str(value) if value is not None else None
+
+
+class MACAddressType(TypeDecorator):
+    """Tipo agnóstico a dialeto de banco para endereços MAC (PostgreSQL MACADDR ou String fallback)."""
+
+    impl = String(17)
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            from sqlalchemy.dialects.postgresql import MACADDR
+
+            return dialect.type_descriptor(MACADDR())
+        return dialect.type_descriptor(String(17))
+
+    def process_bind_param(self, value, dialect):
+        return str(value) if value is not None else None
+
+    def process_result_value(self, value, dialect):
+        return str(value) if value is not None else None
 
 
 class EquipmentType(Base):
@@ -31,6 +72,10 @@ class EquipmentType(Base):
         DateTime(timezone=True),
         nullable=True,
         default=None,
+    )
+
+    __table_args__ = (
+        Index("uq_equipment_types_name_lower", func.lower(name), unique=True),
     )
 
 
@@ -52,6 +97,10 @@ class Sector(Base):
         default=None,
     )
 
+    __table_args__ = (
+        Index("uq_sectors_name_lower", func.lower(name), unique=True),
+    )
+
 
 class EquipmentStatus(Base):
     """Modelo ORM representando o catálogo de situações patrimoniais."""
@@ -71,6 +120,10 @@ class EquipmentStatus(Base):
         default=None,
     )
 
+    __table_args__ = (
+        Index("uq_equipment_statuses_name_lower", func.lower(name), unique=True),
+    )
+
 
 class MaintenanceType(Base):
     """Modelo ORM representando o catálogo de tipos de manutenção."""
@@ -88,6 +141,10 @@ class MaintenanceType(Base):
         DateTime(timezone=True),
         nullable=True,
         default=None,
+    )
+
+    __table_args__ = (
+        Index("uq_maintenance_types_name_lower", func.lower(name), unique=True),
     )
 
 
@@ -112,7 +169,10 @@ class User(Base):
         default=None,
     )
 
-    __table_args__ = (CheckConstraint("role = 'tecnico'", name="chk_users_role_tecnico"),)
+    __table_args__ = (
+        CheckConstraint("role IN ('tecnico', 'colaborador')", name="chk_users_role_valid"),
+        Index("uq_users_email_lower", func.lower(email), unique=True),
+    )
 
 
 class LoginAttempt(Base):
@@ -122,13 +182,18 @@ class LoginAttempt(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     email_attempted: Mapped[str] = mapped_column(String(255), nullable=False)
-    ip_address: Mapped[str] = mapped_column(INET, nullable=False)
+    ip_address: Mapped[str] = mapped_column(IPAddressType, nullable=False)
     attempted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
     success: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    __table_args__ = (
+        Index("ix_login_attempts_ip_attempted_at", "ip_address", "attempted_at"),
+        Index("ix_login_attempts_email_attempted_at", "email_attempted", "attempted_at"),
+    )
 
 
 class Equipment(Base):
@@ -152,11 +217,12 @@ class Equipment(Base):
     sector_id: Mapped[int] = mapped_column(ForeignKey("sectors.id"), nullable=False)
     status_id: Mapped[int] = mapped_column(ForeignKey("equipment_statuses.id"), nullable=False)
 
-    ip_address: Mapped[str | None] = mapped_column(INET, nullable=True)
-    mac_address: Mapped[str | None] = mapped_column(MACADDR, nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(IPAddressType, nullable=True)
+    mac_address: Mapped[str | None] = mapped_column(MACAddressType, nullable=True)
     printer_identifier: Mapped[str | None] = mapped_column(String(255), nullable=True)
     windows_product_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    version_id: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -174,10 +240,48 @@ class Equipment(Base):
         default=None,
     )
 
+    __mapper_args__ = {"version_id_col": version_id}
+
     __table_args__ = (
         CheckConstraint(
             "ip_address IS NULL OR (family(ip_address) = 4 AND masklen(ip_address) = 32) OR (family(ip_address) = 6 AND masklen(ip_address) = 128)",
             name="chk_equipments_ip_host_only",
+        ),
+        Index("uq_equipments_patrimony_number_lower", func.lower(patrimony_number), unique=True),
+        Index(
+            "uq_equipments_serial_number_lower",
+            func.lower(serial_number),
+            unique=True,
+            postgresql_where=text("serial_number IS NOT NULL"),
+            sqlite_where=text("serial_number IS NOT NULL"),
+        ),
+        Index(
+            "uq_equipments_hostname_active",
+            func.lower(hostname),
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL AND hostname IS NOT NULL"),
+            sqlite_where=text("deleted_at IS NULL AND hostname IS NOT NULL"),
+        ),
+        Index(
+            "uq_equipments_ip_address_active",
+            "ip_address",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL AND ip_address IS NOT NULL"),
+            sqlite_where=text("deleted_at IS NULL AND ip_address IS NOT NULL"),
+        ),
+        Index(
+            "uq_equipments_mac_address_active",
+            "mac_address",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL AND mac_address IS NOT NULL"),
+            sqlite_where=text("deleted_at IS NULL AND mac_address IS NOT NULL"),
+        ),
+        Index(
+            "uq_equipments_printer_identifier_active",
+            func.lower(printer_identifier),
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL AND printer_identifier IS NOT NULL"),
+            sqlite_where=text("deleted_at IS NULL AND printer_identifier IS NOT NULL"),
         ),
     )
 
@@ -287,6 +391,13 @@ class EquipmentMaintenance(Base):
         CheckConstraint(
             "completed_at IS NULL OR completed_at >= started_at",
             name="chk_maintenance_completion_after_start",
+        ),
+        Index(
+            "uq_equipment_maintenances_one_open_per_equipment",
+            "equipment_id",
+            unique=True,
+            postgresql_where=text("completed_at IS NULL"),
+            sqlite_where=text("completed_at IS NULL"),
         ),
     )
 

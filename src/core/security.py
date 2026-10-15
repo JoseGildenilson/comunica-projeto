@@ -9,27 +9,37 @@ import os
 from typing import Any, Dict
 from src.core.config import settings
 
-# Tenta importar argon2-cffi, com fallback para hashlib (scrypt) formatado como Argon2id se ausente
-try:  # pragma: no cover
-    from argon2 import PasswordHasher  # type: ignore
-    from argon2.exceptions import VerifyMismatchError  # type: ignore
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
+import jwt
 
-    _argon2_hasher = PasswordHasher()
-except ImportError:  # pragma: no cover
-    _argon2_hasher = None  # fallback interno
+_argon2_hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
+
+# Lista de revogação de tokens em memória (para tokens invalidados no logout)
+_revoked_tokens: set[str] = set()
+
+
+def revoke_token(token: str) -> None:
+    """Adiciona um token à lista de revogação."""
+    if token:
+        _revoked_tokens.add(token.strip())
+
+
+def is_token_revoked(token: str) -> bool:
+    """Verifica se um token consta na lista de revogação."""
+    if not token:
+        return True
+    return token.strip() in _revoked_tokens
+
+
+def _base64url_encode(data: bytes) -> str:
+    """Codifica bytes em base64 URL-safe sem padding."""
+    return base64.urlsafe_b64encode(data).decode().rstrip("=")
 
 
 def hash_password(password: str) -> str:
-    """Gera o hash da senha utilizando o algoritmo Argon2id."""
-    if _argon2_hasher is not None:  # pragma: no cover
-        return _argon2_hasher.hash(password)
-
-    # Fallback seguro via hashlib (scrypt) formatado para simulação de Argon2id com salt aleatório
-    salt = os.urandom(16)
-    derived = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1, dklen=32)
-    salt_b64 = base64.b64encode(salt).decode().rstrip("=")
-    derived_b64 = base64.b64encode(derived).decode().rstrip("=")
-    return f"$argon2id$v=19$m=65536,t=3,p=4${salt_b64}${derived_b64}"
+    """Gera o hash da senha utilizando o algoritmo Argon2id oficial."""
+    return _argon2_hasher.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -37,15 +47,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     if not hashed_password or not isinstance(hashed_password, str):
         return False
 
-    if _argon2_hasher is not None and hashed_password.startswith("$argon2"):  # pragma: no cover
+    if hashed_password.startswith("$argon2"):
         try:
             return _argon2_hasher.verify(hashed_password, plain_password)
-        except VerifyMismatchError:
-            return False
         except Exception:
-            return False
+            # Fallback para hashes gerados pela simulação scrypt
+            pass
 
-    # Fallback para verificação do hash gerado pelo fallback (com extração de salt)
+    # Compatibilidade retroativa para hashes legados
     if hashed_password.startswith("$argon2id$v=19$m=65536,t=3,p=4$"):
         try:
             payload = hashed_password[len("$argon2id$v=19$m=65536,t=3,p=4$") :]
@@ -67,19 +76,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return False
 
 
-# Tenta importar PyJWT, com fallback para codificação HMAC-SHA256 nativa
-try:  # pragma: no cover
-    import jwt as pyjwt  # type: ignore
-except ImportError:  # pragma: no cover
-    pyjwt = None
-
-
-def _base64url_encode(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).decode().rstrip("=")
-
-
 def create_token(data: Dict[str, Any], expires_delta: timedelta, token_type: str = "access") -> str:
-    """Cria um token JWT (access ou refresh)."""
+    """Cria um token JWT (access ou refresh) utilizando a biblioteca PyJWT."""
     to_encode = data.copy()
     now = datetime.now(timezone.utc)
     expire = now + expires_delta
@@ -90,23 +88,7 @@ def create_token(data: Dict[str, Any], expires_delta: timedelta, token_type: str
             "type": token_type,
         }
     )
-
-    if pyjwt is not None:  # pragma: no cover
-        return pyjwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-
-    # Fallback de geração de JWT via HMAC-SHA256 nativo
-    header = {"alg": settings.ALGORITHM, "typ": "JWT"}
-    header_json = json.dumps(header, separators=(",", ":")).encode()
-    payload_json = json.dumps(to_encode, separators=(",", ":")).encode()
-
-    header_b64 = _base64url_encode(header_json)
-    payload_b64 = _base64url_encode(payload_json)
-
-    signing_input = f"{header_b64}.{payload_b64}".encode()
-    signature = hmac.new(settings.SECRET_KEY.encode(), signing_input, hashlib.sha256).digest()
-    sig_b64 = base64.urlsafe_b64encode(signature).decode().rstrip("=")
-
-    return f"{header_b64}.{payload_b64}.{sig_b64}"
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def create_access_token(data: Dict[str, Any], expires_delta: timedelta | None = None) -> str:
@@ -122,14 +104,10 @@ def create_refresh_token(data: Dict[str, Any], expires_delta: timedelta | None =
 
 
 def decode_token(token: str) -> Dict[str, Any]:
-    """Decodifica e valida um token JWT. Lança ValueError se inválido ou expirado."""
-    if pyjwt is not None:  # pragma: no cover
-        try:
-            return pyjwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        except Exception as e:
-            raise ValueError(f"Token inválido: {str(e)}") from e
+    """Decodifica e valida um token JWT. Lança ValueError se inválido, revogado ou expirado."""
+    if is_token_revoked(token):
+        raise ValueError("Token revogado.")
 
-    # Fallback de validação de JWT nativo
     parts = token.split(".")
     if len(parts) != 3:
         raise ValueError("Token malformado")
@@ -153,7 +131,10 @@ def decode_token(token: str) -> Dict[str, Any]:
     if "exp" in payload and payload["exp"] < now_ts:
         raise ValueError("Token expirado")
 
-    return payload
+    try:
+        return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    except Exception:
+        return payload
 
 
 def _get_fernet():

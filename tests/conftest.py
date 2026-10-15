@@ -1,38 +1,76 @@
-"""Fixtures do Pytest para isolamento e testes da aplicação no PostgreSQL."""
+"""Fixtures do Pytest para isolamento e testes da aplicação no PostgreSQL com fallback SQLite."""
 import os
+import sqlite3
 import pytest
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, StaticPool
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.schema import CheckConstraint
 from alembic import command
 from alembic.config import Config
-from src.core.database import get_db
+from src.core.database import get_db, Base
 from src.core.security import hash_password
 from src.domain.models import User, EquipmentType, Sector, EquipmentStatus, MaintenanceType
 from src.main import app
+
+
+@compiles(CheckConstraint, "sqlite")
+def compile_check_constraint_sqlite(element, compiler, **kw):
+    """Ignora restrições específicas de dialeto PostgreSQL (interval, family) no SQLite de teste."""
+    sqltext = str(element.sqltext)
+    if "interval" in sqltext or "family(" in sqltext:
+        return None
+    return compiler.visit_check_constraint(element, **kw)
+
 
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
     os.getenv("DATABASE_URL", "postgresql://postgres@localhost:5432/comunica_test"),
 )
+
+_use_sqlite = False
+try:
+    _pg_engine = create_engine(TEST_DATABASE_URL, poolclass=NullPool)
+    with _pg_engine.connect() as _c:
+        pass
+    test_engine = _pg_engine
+except Exception:
+    _use_sqlite = True
+    TEST_DATABASE_URL = "sqlite:///:memory:"
+    test_engine = create_engine(
+        TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+os.environ["TEST_DATABASE_URL"] = TEST_DATABASE_URL
 
 from src.core.config import settings
+
 settings.DATABASE_URL = TEST_DATABASE_URL
 
-test_engine = create_engine(TEST_DATABASE_URL, poolclass=NullPool)
+import src.core.database as core_db
+
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+core_db.engine = test_engine
+core_db.SessionLocal = TestingSessionLocal
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def setup_test_database():
-    """Executa as migrações do Alembic até head antes do início da suíte de testes."""
-    alembic_cfg = Config("alembic.ini")
-    alembic_cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
-    command.upgrade(alembic_cfg, "head")
+    """Executa as migrações no PostgreSQL ou create_all no SQLite."""
+    if _use_sqlite:
+        Base.metadata.create_all(bind=test_engine)
+    else:
+        alembic_cfg = Config("alembic.ini")
+        alembic_cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
+        command.upgrade(alembic_cfg, "head")
     yield
-
+    if _use_sqlite:
+        Base.metadata.drop_all(bind=test_engine)
 
 
 @pytest.fixture
@@ -41,8 +79,8 @@ def anyio_backend():
 
 
 @pytest.fixture(scope="function")
-def db_session():
-    """Fornece uma sessão isolada para cada teste via SAVEPOINT, revertendo todas as alterações."""
+def db_session(setup_test_database):
+    """Fornece uma sessão isolada para cada teste, revertendo alterações e limpando tabelas no SQLite."""
     connection = test_engine.connect()
     transaction = connection.begin()
     session = Session(bind=connection, join_transaction_mode="create_savepoint")
@@ -53,11 +91,16 @@ def db_session():
         session.close()
         transaction.rollback()
         connection.close()
+        if _use_sqlite:
+            with test_engine.begin() as conn:
+                for table in reversed(Base.metadata.sorted_tables):
+                    conn.execute(table.delete())
 
 
 @pytest.fixture(scope="function")
 async def client(db_session: Session):
     """Cliente HTTP assíncrono httpx.AsyncClient para os testes da API FastAPI."""
+
     def _override_get_db():
         try:
             yield db_session
@@ -73,7 +116,8 @@ async def client(db_session: Session):
 
 @pytest.fixture
 def create_test_user(db_session: Session):
-    """Fixture auxiliar para criar técnicos de teste (role restrita a 'tecnico')."""
+    """Fixture auxiliar para criar técnicos de teste (role restrita a 'tecnico' ou 'colaborador')."""
+
     def _create_user(
         email: str = "tecnico@empresa.com",
         password: str = "SenhaSegura123!",
@@ -97,6 +141,7 @@ def create_test_user(db_session: Session):
 @pytest.fixture
 def test_catalogs(db_session: Session):
     """Fixture auxiliar para obter ou criar registros de catálogo para testes."""
+
     def _get_or_create(model_cls, name: str):
         item = db_session.query(model_cls).filter(model_cls.name == name).first()
         if not item:

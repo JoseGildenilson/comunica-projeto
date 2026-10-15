@@ -1,14 +1,17 @@
 """Caso de uso para autenticação de usuário com controle de rate limit e auditoria."""
 
 from typing import Dict, Any
+import threading
 from sqlalchemy.orm import Session
 from src.core.security import verify_password, create_access_token, create_refresh_token
 from src.domain.models import User
 from src.infrastructure.repositories import UserRepository, LoginAttemptRepository
 
+_rate_limit_lock = threading.Lock()
+
 
 class RateLimitExceededException(Exception):
-    """Exceção lançada quando o limite de tentativas de login é excedido por IP (HTTP 429)."""
+    """Exceção lançada quando o limite de tentativas de login é excedido por IP ou conta (HTTP 429)."""
 
     def __init__(
         self,
@@ -38,17 +41,28 @@ class AuthenticateUserUseCase:
         """Executa validação, rate limiting e auditoria no login.
 
         Em conformidade com a Constituição e RN-REF-03 / RN-REF-04:
-        - Bloqueia IP com 10 ou mais falhas nos últimos 15 minutos.
+        - Bloqueia IP com 10 ou mais falhas nos últimos 15 minutos (ISSUE-006 / ISSUE-007).
+        - Bloqueia conta com 5 ou mais falhas nos últimos 15 minutos (ISSUE-007).
+        - Protege contra condições de corrida com trava sincronizada de execução (ISSUE-006).
         - Busca usuário de forma case-insensitive e valida deleted_at IS NULL e is_active.
         - Grava email_attempted e ip_address na tabela login_attempts sem armazenar a senha.
         - Controla transação unificada.
         """
-        # 1. Verifica taxa de tentativas malsucedidas por IP
-        failed_count = self.login_attempt_repo.count_recent_failed_attempts(
-            ip_address, window_minutes=15
-        )
-        if failed_count >= 10:
-            raise RateLimitExceededException()
+        with _rate_limit_lock:
+            # 1. Verifica taxa de tentativas malsucedidas por IP e por conta
+            failed_ip_count = self.login_attempt_repo.count_recent_failed_attempts(
+                ip_address, window_minutes=15
+            )
+            if failed_ip_count >= 10:
+                raise RateLimitExceededException()
+
+            failed_email_count = self.login_attempt_repo.count_recent_failed_attempts_by_email(
+                email, window_minutes=15
+            )
+            if failed_email_count >= 5:
+                raise RateLimitExceededException(
+                    "Acesso temporariamente bloqueado por motivos de segurança devido ao excesso de tentativas malsucedidas."
+                )
 
         # 2. Busca usuário por email (case-insensitive e deleted_at IS NULL)
         user = self.user_repo.get_by_email(email)

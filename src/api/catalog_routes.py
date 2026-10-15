@@ -55,12 +55,8 @@ def create_catalog_router(
     ):
         use_case = ManageCatalogsUseCase(db)
         try:
-            item = use_case.create_item(model_cls, data)
-            db.commit()
-            db.refresh(item)
-            return item
+            return use_case.create_item(model_cls, data)
         except ValueError as e:
-            db.rollback()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     @router.get("/{id}", response_model=response_schema)
@@ -84,15 +80,10 @@ def create_catalog_router(
     ):
         use_case = ManageCatalogsUseCase(db)
         try:
-            item = use_case.update_item(model_cls, id, data)
-            db.commit()
-            db.refresh(item)
-            return item
+            return use_case.update_item(model_cls, id, data)
         except KeyError as e:
-            db.rollback()
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
         except ValueError as e:
-            db.rollback()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     @router.delete("/{id}", response_model=MessageResponse)
@@ -104,11 +95,11 @@ def create_catalog_router(
         use_case = ManageCatalogsUseCase(db)
         try:
             use_case.delete_item(model_cls, id)
-            db.commit()
             return MessageResponse(message="Item excluído logicamente com sucesso.")
         except KeyError as e:
-            db.rollback()
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     @router.post("/{id}/restore", response_model=response_schema)
     def restore_item(
@@ -118,13 +109,11 @@ def create_catalog_router(
     ):
         use_case = ManageCatalogsUseCase(db)
         try:
-            item = use_case.restore_item(model_cls, id)
-            db.commit()
-            db.refresh(item)
-            return item
+            return use_case.restore_item(model_cls, id)
         except KeyError as e:
-            db.rollback()
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     return router
 

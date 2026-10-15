@@ -174,4 +174,50 @@ describe('Componente ManageTagsModal', () => {
 
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('Exibe erro ao falhar renomeação ou exclusão de tag e seleciona aba situação', async () => {
+    const user = userEvent.setup();
+    vi.mocked(equipmentApi.updateTag).mockRejectedValueOnce({
+      response: { data: { detail: 'Erro ao renomear tag no catálogo.' } },
+    });
+    vi.mocked(equipmentApi.deleteTag).mockRejectedValueOnce({
+      response: { data: { detail: 'Não é possível excluir tag em uso.' } },
+    });
+
+    render(<ManageTagsModal isOpen={true} onClose={onClose} onTagsUpdated={onTagsUpdated} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Notebook')).toBeInTheDocument();
+    });
+
+    // 1. Erro ao salvar edição
+    const editBtn = screen.getByTestId('edit-tag-btn-1');
+    await user.click(editBtn);
+    const saveBtn = screen.getByTestId('save-tag-btn-1');
+    await user.click(saveBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Erro ao renomear tag no catálogo.')).toBeInTheDocument();
+    });
+
+    // Cancelar edição antes de excluir
+    const cancelEditBtn = screen.getByTestId('cancel-tag-btn-1');
+    await user.click(cancelEditBtn);
+
+    // 2. Erro ao confirmar exclusão
+    const delBtn = screen.getByTestId('delete-tag-btn-1');
+    await user.click(delBtn);
+    const confirmBtn = screen.getByTestId('confirm-delete-tag-btn-1');
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Não é possível excluir tag em uso.')).toBeInTheDocument();
+    });
+
+    // 3. Seleciona aba situação (cobre linha 241 placeholder 'status')
+    const sitTab = screen.getByTestId('tab-situacao');
+    await user.click(sitTab);
+    expect(screen.getByPlaceholderText(/Adicionar novo status/i)).toBeInTheDocument();
+  });
 });
+

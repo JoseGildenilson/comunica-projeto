@@ -280,4 +280,37 @@ describe('ImportPage (Frontend)', () => {
       expect(importApi.previewSpreadsheet).toHaveBeenCalledWith(file);
     });
   });
+
+  it('Exibe fallback de erro genérico e limpa o input de arquivo ao reiniciar', async () => {
+    (importApi.previewSpreadsheet as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockPreviewData);
+    (importApi.executeImport as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('Falha de rede sem resposta')
+    );
+
+    render(
+      <AuthProvider>
+        <MemoryRouter initialEntries={['/importar']}>
+          <Routes>
+            <Route path="/importar" element={<ImportPage />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>
+    );
+
+    const file = new File(['mock content'], 'patrimonio.xlsx');
+    const fileInput = screen.getByTestId('spreadsheet-file-input');
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    const confirmBtn = await screen.findByTestId('confirm-import-button');
+    fireEvent.click(confirmBtn);
+
+    expect(await screen.findByText('Falha de rede sem resposta')).toBeInTheDocument();
+
+    // Clicar em reiniciar / cancelar pré-visualização
+    const resetBtn = screen.getByRole('button', { name: 'Cancelar' });
+    fireEvent.click(resetBtn);
+
+    expect(screen.getByText('Carregar Arquivo de Inventário')).toBeInTheDocument();
+  });
 });
+
