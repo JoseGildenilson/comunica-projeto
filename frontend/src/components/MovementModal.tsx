@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, ArrowRightLeft, AlertCircle, Plus, Check } from 'lucide-react';
 import { equipmentApi } from '../api/equipmentApi';
 import { EquipmentTag } from '../types/equipment';
+import { formatApiError } from '../utils/errorUtils';
 
 interface MovementModalProps {
   isOpen: boolean;
@@ -46,7 +47,7 @@ export const MovementModal: React.FC<MovementModalProps> = ({
       setDestinationLocation(created.name);
       setNewLocationInput(null);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao criar nova localização.');
+      setError(formatApiError(err, 'Erro ao criar nova localização.'));
     } finally {
       setCreatingLocation(false);
     }
@@ -60,16 +61,27 @@ export const MovementModal: React.FC<MovementModalProps> = ({
     setLoading(true);
 
     try {
+      // Find sector IDs from localLocations
+      const originMatch = localLocations.find(
+        (l) => l.name.trim().toLowerCase() === (currentLocation || '').trim().toLowerCase()
+      );
+      const destMatch = localLocations.find(
+        (l) => l.name.trim().toLowerCase() === (destinationLocation || '').trim().toLowerCase()
+      );
+
+      const originId = originMatch?.id || 1;
+      const destId = destMatch?.id || 1;
+
       await equipmentApi.recordMovement(equipmentId, {
-        origin_location: currentLocation,
-        destination_location: destinationLocation,
+        origin_sector_id: originId,
+        destination_sector_id: destId,
         movement_date: new Date(movementDate).toISOString(),
         notes: notes.trim() || undefined,
       });
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao registrar movimentação');
+      setError(formatApiError(err, 'Erro ao registrar movimentação'));
     } finally {
       setLoading(false);
     }

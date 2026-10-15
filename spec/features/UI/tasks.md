@@ -46,6 +46,7 @@ Este documento detalha as etapas de implementação para o redesign do frontend,
   - [x] Remover gradientes coloridos do banner de boas-vindas; adotar cabeçalho de seção estruturado e limpo.
   - [x] Redesenhar os cards de métricas (Tickets e Equipamentos) com números em `font-mono tabular-nums`.
   - [x] Refinar menu lateral (`SideMenu.tsx`) com gaveta escurecida de alta precisão e tipografia refinada.
+  - [x] Garantir que o drawer do `SideMenu.tsx` ocupe a altura total da tela (`h-screen min-h-screen top-0 bottom-0`) para não compactar em headers.
 
 ---
 
@@ -59,8 +60,9 @@ Este documento detalha as etapas de implementação para o redesign do frontend,
   - [x] Estruturar seções técnicas com quadrantes limpos de 1px.
   - [x] Transformar os históricos de movimentações e manutenções em Timelines Técnicas limpas.
   - [x] Refinar botões de ação e modo de edição em lote.
-- [x] **TASK-UI-07: Redesign dos Modais (`NewEquipmentModal.tsx`, `MaintenanceModal.tsx`, `EditMaintenanceModal.tsx`, `MovementModal.tsx`)**
+- [x] **TASK-UI-07: Redesign dos Modais (`NewEquipmentModal.tsx`, `MaintenanceModal.tsx`, `EditMaintenanceModal.tsx`, `MovementModal.tsx`, `ManageTagsModal.tsx`)**
   - [x] Aplicar acabamento consistente com overlays limpos e formulários de alta densidade.
+  - [x] Elevar o z-index de `ManageTagsModal.tsx` para `z-[60]` e renderizar via `createPortal(..., document.body)` para escapar do empilhamento/backdrop do header sticky e SideMenu.
 
 ---
 

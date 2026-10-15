@@ -32,6 +32,9 @@ A funcionalidade conta com um **Gerenciador Centralizado de Tags** (modal com ab
   - Acessível a partir do menu lateral (`SideMenu`) e por meio do botão `"Gerenciar Tags"` no cabeçalho da listagem de equipamentos (`/equipamentos`).
   - Apresenta abas ou seções para cada uma das 3 categorias (`Tipo`, `Localização`, `Situação`).
   - Exibe contador de tags por categoria.
+  - Estrutura do modal dividida em cabeçalho, abas de categoria, container superior estático do formulário de adição (`px-6 pt-4 pb-2 z-20`) com `overflow-visible`, área de listagem de tags com rolagem independente (`overflow-y-auto px-6 pb-6`) e rodapé fixo.
+  - O popover do seletor de ícones estilo Iconize abre para baixo (`top-full mt-2`) sobrepondo a lista de tags com `z-50`, permanecendo 100% visível sem ser recortado por overflow e sem colidir com o rodapé.
+  - Exibe o ícone selecionado ao lado do nome de cada tag cadastrada.
   - Permite criação rápida via input + botão "+ Adicionar".
   - Cada item na lista possui ações de **Editar** (transforma o item em input com botões Salvar/Cancelar) e **Excluir** (com confirmação).
 - **RN-TAG-09 (Criação Rápida Inline):**

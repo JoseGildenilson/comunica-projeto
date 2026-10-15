@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Plus, HardDrive, Check, AlertCircle } from 'lucide-react';
 import { equipmentApi } from '../api/equipmentApi';
 import { EquipmentCreatePayload, EquipmentTag } from '../types/equipment';
+import { formatApiError } from '../utils/errorUtils';
 
 interface NewEquipmentModalProps {
   isOpen: boolean;
@@ -77,7 +78,7 @@ export const NewEquipmentModal: React.FC<NewEquipmentModalProps> = ({ isOpen, on
       if (category === 'situacao') setStatus(created.name);
       setNewTagInput(null);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao criar nova tag');
+      setError(formatApiError(err, 'Erro ao criar nova tag'));
     }
   };
 
@@ -85,23 +86,32 @@ export const NewEquipmentModal: React.FC<NewEquipmentModalProps> = ({ isOpen, on
     e.preventDefault();
     setError(null);
 
-    if (!serialNumber.trim() || !description.trim()) {
-      setError('Número de série e descrição são obrigatórios.');
+    if (!patrimonyNumber.trim() && !serialNumber.trim()) {
+      setError('Número de patrimônio ou número de série é obrigatório.');
       return;
     }
 
     setLoading(true);
     try {
+      const typeMatch = types.find((t) => t.name.trim().toLowerCase() === equipmentType.trim().toLowerCase());
+      const locMatch = locations.find((l) => l.name.trim().toLowerCase() === location.trim().toLowerCase());
+      const statusMatch = statuses.find((s) => s.name.trim().toLowerCase() === status.trim().toLowerCase());
+
       const payload: EquipmentCreatePayload = {
-        serial_number: serialNumber.trim(),
-        patrimony_number: patrimonyNumber.trim() || null,
+        serial_number: serialNumber.trim() || null,
+        patrimony_number: (patrimonyNumber.trim() || serialNumber.trim()),
         hostname: hostname.trim() || null,
-        description: description.trim(),
+        description: description.trim() || null,
         brand: brand.trim() || null,
+        model: productNumber.trim() || null,
         product_number: productNumber.trim() || null,
         equipment_type: equipmentType,
+        equipment_type_id: typeMatch?.id || 1,
         location: location,
+        sector_id: locMatch?.id || 1,
         status: status,
+        status_id: statusMatch?.id || 1,
+        windows_product_key: windowsKey.trim() || null,
         windows_key: windowsKey.trim() || null,
         notes: notes.trim() || null,
       };
@@ -110,7 +120,7 @@ export const NewEquipmentModal: React.FC<NewEquipmentModalProps> = ({ isOpen, on
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao cadastrar equipamento');
+      setError(formatApiError(err, 'Erro ao cadastrar equipamento'));
     } finally {
       setLoading(false);
     }

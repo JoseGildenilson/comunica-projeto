@@ -27,6 +27,9 @@
 - [x] **2.2 Modal de Gerenciamento Centralizado (`ManageTagsModal.tsx`):**
   - Criar componente `ManageTagsModal` com abas para as 3 categorias (`Tipo`, `Localização`, `Situação`).
   - Implementar listagem com badge contador de tags.
+  - Implementar seletor de ícone estilo Iconize com busca rápida e biblioteca de ícones Lucide contextuais.
+  - Desacoplar o formulário de adição em container estático (`z-20 overflow-visible`), mantendo a rolagem (`overflow-y-auto`) restrita à lista de tags para que o popover (`top-full mt-2 z-50`) fique 100% visível sobrepondo a lista sem ser recortado por overflow.
+  - Exibir ícone associado no card da tag e persistir visualmente com fallback.
   - Implementar formulário de adição rápida de tag.
   - Implementar edição inline (botão editar -> input -> salvar/cancelar).
   - Implementar exclusão com confirmação visual.

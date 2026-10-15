@@ -69,7 +69,14 @@ export const equipmentApi = {
 
   recordMovement: async (
     equipmentId: number,
-    payload: { origin_location: string; destination_location: string; movement_date: string; notes?: string }
+    payload: {
+      origin_sector_id?: number;
+      destination_sector_id?: number;
+      origin_location?: string;
+      destination_location?: string;
+      movement_date: string;
+      notes?: string;
+    }
   ): Promise<EquipmentMovement> => {
     const response = await equipmentHttpClient.post<EquipmentMovement>(`/${equipmentId}/movements`, payload);
     return response.data;
@@ -77,7 +84,14 @@ export const equipmentApi = {
 
   recordMaintenance: async (
     equipmentId: number,
-    payload: { maintenance_date: string; maintenance_type?: string; description: string; notes?: string }
+    payload: {
+      maintenance_type_id?: number;
+      started_at?: string;
+      maintenance_date?: string;
+      maintenance_type?: string;
+      description: string;
+      notes?: string;
+    }
   ): Promise<EquipmentMaintenance> => {
     const response = await equipmentHttpClient.post<EquipmentMaintenance>(`/${equipmentId}/maintenances`, payload);
     return response.data;
@@ -86,7 +100,15 @@ export const equipmentApi = {
   updateMaintenance: async (
     equipmentId: number,
     maintenanceId: number,
-    payload: { maintenance_date?: string; maintenance_type?: string; description?: string; notes?: string }
+    payload: {
+      maintenance_type_id?: number;
+      started_at?: string;
+      completed_at?: string | null;
+      maintenance_date?: string;
+      maintenance_type?: string;
+      description?: string;
+      notes?: string;
+    }
   ): Promise<EquipmentMaintenance> => {
     const response = await equipmentHttpClient.put<EquipmentMaintenance>(
       `/${equipmentId}/maintenances/${maintenanceId}`,

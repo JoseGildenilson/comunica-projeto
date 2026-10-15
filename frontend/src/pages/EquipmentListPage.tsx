@@ -140,8 +140,9 @@ export const EquipmentListPage: React.FC = () => {
     filterProducts.length > 0 ||
     Boolean(search);
 
-  const getEquipmentIcon = (type: string) => {
-    const t = type.toLowerCase();
+  const getEquipmentIcon = (type?: any) => {
+    const raw = typeof type === 'object' && type !== null ? type.name : type;
+    const t = String(raw || '').toLowerCase();
     if (t.includes('notebook') || t.includes('laptop')) return <Laptop className="w-5 h-5 text-zinc-300" />;
     if (t.includes('monitor') || t.includes('tela')) return <Monitor className="w-5 h-5 text-zinc-300" />;
     if (t.includes('impressora')) return <Printer className="w-5 h-5 text-zinc-300" />;
@@ -149,13 +150,15 @@ export const EquipmentListPage: React.FC = () => {
     return <HardDrive className="w-5 h-5 text-zinc-300" />;
   };
 
-  const renderStatusPill = (status: string) => {
-    const s = status.toLowerCase();
+  const renderStatusPill = (status?: any) => {
+    const raw = typeof status === 'object' && status !== null ? status.name : status;
+    const safeStatus = String(raw || 'Não definido');
+    const s = safeStatus.toLowerCase();
     if (s.includes('uso') || s.includes('ativo')) {
       return (
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 font-medium text-xs">
           <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-          {status}
+          {safeStatus}
         </span>
       );
     }
@@ -163,7 +166,7 @@ export const EquipmentListPage: React.FC = () => {
       return (
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 font-medium text-xs">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-          {status}
+          {safeStatus}
         </span>
       );
     }
@@ -171,7 +174,7 @@ export const EquipmentListPage: React.FC = () => {
       return (
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-medium text-xs">
           <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-          {status}
+          {safeStatus}
         </span>
       );
     }
@@ -179,14 +182,14 @@ export const EquipmentListPage: React.FC = () => {
       return (
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-600/20 text-zinc-400 font-medium text-xs">
           <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
-          {status}
+          {safeStatus}
         </span>
       );
     }
     return (
       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 font-medium text-xs">
         <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
-        {status}
+        {safeStatus}
       </span>
     );
   };
@@ -495,7 +498,9 @@ export const EquipmentListPage: React.FC = () => {
                         </span>
                       )}
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-white/10 text-gray-300 font-mono">
-                        {item.equipment_type}
+                        {typeof item.equipment_type === 'object' && item.equipment_type !== null
+                          ? (item.equipment_type as any).name
+                          : item.equipment_type}
                       </span>
                     </div>
 
@@ -508,7 +513,13 @@ export const EquipmentListPage: React.FC = () => {
                       {/* Location with Icon */}
                       <span className="flex items-center gap-1">
                         <MapPin className="w-3.5 h-3.5 text-[#9E9E9E]" />
-                        <span className="text-[#E0E0E0]">{item.location}</span>
+                        <span className="text-[#E0E0E0]">
+                          {typeof (item as any).sector === 'object' && (item as any).sector !== null
+                            ? (item as any).sector.name
+                            : typeof item.location === 'object' && item.location !== null
+                            ? (item.location as any).name
+                            : item.location || (item as any).sector || 'Não definido'}
+                        </span>
                       </span>
 
                       {item.patrimony_number && (

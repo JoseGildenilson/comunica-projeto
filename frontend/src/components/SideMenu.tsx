@@ -78,7 +78,7 @@ export const SideMenu: React.FC = () => {
       {/* Drawer do Menu Lateral */}
       <aside
         ref={menuRef}
-        className={`fixed top-0 left-0 h-full w-72 bg-[#1E1E1E] border-r border-[#333333] text-[#E0E0E0] shadow-2xl z-50 flex flex-col justify-between transform transition-transform duration-200 ease-out ${
+        className={`fixed top-0 bottom-0 left-0 h-screen min-h-screen w-72 bg-[#1E1E1E] border-r border-[#333333] text-[#E0E0E0] shadow-2xl z-50 flex flex-col justify-between transform transition-transform duration-200 ease-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         aria-label="Sidebar Menu"

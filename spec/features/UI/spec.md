@@ -67,6 +67,7 @@ Transformar o sistema em uma ferramenta de software corporativo de **alto nível
     - Rótulo superior técnico com micro-ícone e status descritivo inferior.
     - Card de Equipamentos com sinalização de atalho clara e hover sutil (elevação mínima de borda e luminosidade, sem neon).
   - Menu lateral retrátil com visual de barra lateral técnica nativa (painel escuro com tipografia fina, divisor discreto de seções e perfil do usuário condensado).
+  - O drawer do menu lateral deve ocupar a altura total da viewport (`h-screen min-h-screen top-0 bottom-0`) para evitar compactação vertical independente do elemento pai ou header em que o gatilho estiver posicionado.
 
 ### 3.3. Listagem de Equipamentos (`EquipmentListPage.tsx`)
 - **RN-UI-03 (Tabela / Grid de Alta Densidade de Ativos):**
@@ -90,6 +91,7 @@ Transformar o sistema em uma ferramenta de software corporativo de **alto nível
 ### 3.5. Modais e Formulários (`NewEquipmentModal.tsx`, `MaintenanceModal.tsx`, etc.)
 - **RN-UI-05 (Formulários Utilitários de Alta Eficiência):**
   - Modais com overlay escuro limpo (`bg-black/70 backdrop-blur-sm`).
+  - O modal do Gerenciador de Tags (`ManageTagsModal.tsx`) e modais globais devem ser renderizados via Portal (`createPortal(..., document.body)`) com camada de empilhamento elevada (`z-[60]` ou superior) para evitar que fiquem presos ou abaixo de elementos pais que possuem `backdrop-filter`, `transform` ou `z-index` local (como headers sticky e drawers laterais).
   - Estrutura de abas ou seções bem delineadas com títulos técnicos claros.
   - Inputs com foco limpo (`ring-1 ring-zinc-400 border-zinc-400`), eliminando halos azuis desfocados.
   - Botões de confirmação e cancelamento consistentes e bem alinhados.

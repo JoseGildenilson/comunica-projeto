@@ -6,6 +6,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { EquipmentListPage } from './pages/EquipmentListPage';
 import { EquipmentDetailPage } from './pages/EquipmentDetailPage';
 import { ImportPage } from './pages/ImportPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; requiredRole?: string }> = ({ children, requiredRole }) => {
   const { isAuthenticated, user, loading } = useAuthContext();
@@ -31,53 +32,57 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; requiredRole?: strin
 
 export const AppContent: React.FC = () => {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <DashboardPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/equipamentos"
-        element={
-          <ProtectedRoute requiredRole="tecnico">
-            <EquipmentListPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/equipamentos/:id"
-        element={
-          <ProtectedRoute requiredRole="tecnico">
-            <EquipmentDetailPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/importar"
-        element={
-          <ProtectedRoute requiredRole="tecnico">
-            <ImportPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="/import" element={<Navigate to="/importar" replace />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+    <ErrorBoundary>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/equipamentos"
+          element={
+            <ProtectedRoute requiredRole="tecnico">
+              <EquipmentListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/equipamentos/:id"
+          element={
+            <ProtectedRoute requiredRole="tecnico">
+              <EquipmentDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/importar"
+          element={
+            <ProtectedRoute requiredRole="tecnico">
+              <ImportPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/import" element={<Navigate to="/importar" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </ErrorBoundary>
   );
 };
 
 export const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <AppContent />
-      </BrowserRouter>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
+          <AppContent />
+        </BrowserRouter>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 };
 

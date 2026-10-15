@@ -51,11 +51,13 @@ describe('SideMenu', () => {
     );
   };
 
-  it('inicia recolhido com drawer fora da tela (-translate-x-full)', () => {
+  it('inicia recolhido com drawer fora da tela (-translate-x-full) e altura total de viewport', () => {
     renderComponent();
 
     const aside = screen.getByLabelText('Sidebar Menu');
     expect(aside).toHaveClass('-translate-x-full');
+    expect(aside).toHaveClass('h-screen');
+    expect(aside).toHaveClass('min-h-screen');
   });
 
   it('abre o menu ao clicar no botão hambúrguer alternando para translate-x-0', () => {

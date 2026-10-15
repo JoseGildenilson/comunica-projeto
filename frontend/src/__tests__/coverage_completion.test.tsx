@@ -752,6 +752,7 @@ describe('Coverage Completion Suite: 100% Statement and Branch Coverage', () => 
       fireEvent.click(manageTagsBtn);
 
       expect(await screen.findByText('Gerenciador de Tags')).toBeInTheDocument();
+      expect(screen.getByTestId('manage-tags-modal')).toHaveClass('z-[60]');
 
       const closeBtn = screen.getByTestId('close-tags-modal-btn');
       fireEvent.click(closeBtn);

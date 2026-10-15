@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Plus,
@@ -10,9 +11,31 @@ import {
   Edit2,
   Trash2,
   Check,
+  Search,
+  Monitor,
+  Printer,
+  Smartphone,
+  Server,
+  HardDrive,
+  Cpu,
+  Wifi,
+  Radio,
+  Building,
+  Home,
+  Briefcase,
+  Layers,
+  Archive,
+  Clock,
+  Wrench,
+  Shield,
+  HelpCircle,
+  Folder,
+  Sliders,
+  ChevronDown,
 } from 'lucide-react';
 import { equipmentApi } from '../api/equipmentApi';
 import { EquipmentTag } from '../types/equipment';
+import { formatApiError } from '../utils/errorUtils';
 
 interface ManageTagsModalProps {
   isOpen: boolean;
@@ -22,10 +45,43 @@ interface ManageTagsModalProps {
 
 type CategoryType = 'tipo' | 'localizacao' | 'situacao';
 
-const CATEGORIES: { id: CategoryType; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { id: 'tipo', label: 'Tipos de Equipamento', icon: Laptop },
-  { id: 'localizacao', label: 'Localizações', icon: MapPin },
-  { id: 'situacao', label: 'Situações (Status)', icon: TagIcon },
+export const ICON_OPTIONS: { name: string; label: string; icon: React.FC<{ className?: string }> }[] = [
+  { name: 'laptop', label: 'Notebook / Laptop', icon: Laptop },
+  { name: 'monitor', label: 'Monitor / Tela', icon: Monitor },
+  { name: 'printer', label: 'Impressora', icon: Printer },
+  { name: 'smartphone', label: 'Smartphone / Tablet', icon: Smartphone },
+  { name: 'server', label: 'Servidor', icon: Server },
+  { name: 'harddrive', label: 'Desktop / HD / Storage', icon: HardDrive },
+  { name: 'cpu', label: 'Processador / Hardware', icon: Cpu },
+  { name: 'wifi', label: 'Rede / Roteador / Wi-Fi', icon: Wifi },
+  { name: 'radio', label: 'Rádio / Comunicação', icon: Radio },
+  { name: 'building', label: 'Prédio / Sede / Setor', icon: Building },
+  { name: 'map-pin', label: 'Local / Sala / Ponto', icon: MapPin },
+  { name: 'home', label: 'Home Office / Base', icon: Home },
+  { name: 'briefcase', label: 'Diretoria / Administrativo', icon: Briefcase },
+  { name: 'layers', label: 'Camada / Estoque', icon: Layers },
+  { name: 'archive', label: 'Almoxarifado / Arquivo', icon: Archive },
+  { name: 'check', label: 'Em Uso / Ativo / Ok', icon: Check },
+  { name: 'wrench', label: 'Manutenção / Reparo', icon: Wrench },
+  { name: 'clock', label: 'Aguardando / Pendente', icon: Clock },
+  { name: 'shield', label: 'Segurança / TI', icon: Shield },
+  { name: 'tag', label: 'Tag Geral / Status', icon: TagIcon },
+  { name: 'folder', label: 'Pasta / Projeto', icon: Folder },
+  { name: 'sliders', label: 'Configuração / Outro', icon: Sliders },
+];
+
+export const getIconComponent = (iconName?: string | null, fallbackIcon?: React.FC<{ className?: string }>) => {
+  if (iconName) {
+    const found = ICON_OPTIONS.find((item) => item.name.toLowerCase() === iconName.toLowerCase());
+    if (found) return found.icon;
+  }
+  return fallbackIcon || TagIcon;
+};
+
+const CATEGORIES: { id: CategoryType; label: string; icon: React.FC<{ className?: string }>; defaultIconName: string }[] = [
+  { id: 'tipo', label: 'Tipos de Equipamento', icon: Laptop, defaultIconName: 'laptop' },
+  { id: 'localizacao', label: 'Localizações', icon: MapPin, defaultIconName: 'map-pin' },
+  { id: 'situacao', label: 'Situações (Status)', icon: TagIcon, defaultIconName: 'tag' },
 ];
 
 export const ManageTagsModal: React.FC<ManageTagsModalProps> = ({
@@ -39,9 +95,23 @@ export const ManageTagsModal: React.FC<ManageTagsModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // New tag input
+  // New tag input & icon state
   const [newTagName, setNewTagName] = useState('');
+  const [selectedIconName, setSelectedIconName] = useState<string>('laptop');
+  const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
+  const [iconSearch, setIconSearch] = useState('');
   const [addingTag, setAddingTag] = useState(false);
+  const iconPickerRef = useRef<HTMLDivElement>(null);
+
+  // Map of local custom icons for tags
+  const [tagIcons, setTagIcons] = useState<Record<number, string>>(() => {
+    try {
+      const saved = localStorage.getItem('equipment_tag_icons');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
 
   // Editing state
   const [editingTagId, setEditingTagId] = useState<number | null>(null);
@@ -68,7 +138,7 @@ export const ManageTagsModal: React.FC<ManageTagsModalProps> = ({
       const data = await equipmentApi.getTags();
       setTags(data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao carregar tags.');
+      setError(formatApiError(err, 'Erro ao carregar tags.'));
     } finally {
       setLoading(false);
     }
@@ -77,6 +147,7 @@ export const ManageTagsModal: React.FC<ManageTagsModalProps> = ({
   if (!isOpen) return null;
 
   const currentCategoryTags = tags.filter((t) => t.category === activeCategory);
+  const activeCategoryObj = CATEGORIES.find((c) => c.id === activeCategory);
 
   const handleAddTag = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,13 +158,22 @@ export const ManageTagsModal: React.FC<ManageTagsModalProps> = ({
     setAddingTag(true);
 
     try {
-      await equipmentApi.createTag(activeCategory, newTagName.trim());
+      const createdTag = await equipmentApi.createTag(activeCategory, newTagName.trim());
+      if (createdTag?.id) {
+        const nextMap = { ...tagIcons, [createdTag.id]: selectedIconName };
+        setTagIcons(nextMap);
+        try {
+          localStorage.setItem('equipment_tag_icons', JSON.stringify(nextMap));
+        } catch {
+          // ignore localStorage error
+        }
+      }
       setNewTagName('');
       setSuccessMsg('Tag cadastrada com sucesso.');
       await fetchTags();
       if (onTagsUpdated) onTagsUpdated();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao cadastrar tag.');
+      setError(formatApiError(err, 'Erro ao cadastrar tag.'));
     } finally {
       setAddingTag(false);
     }
@@ -129,7 +209,7 @@ export const ManageTagsModal: React.FC<ManageTagsModalProps> = ({
       await fetchTags();
       if (onTagsUpdated) onTagsUpdated();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao renomear tag.');
+      setError(formatApiError(err, 'Erro ao renomear tag.'));
     } finally {
       setSavingEdit(false);
     }
@@ -146,14 +226,14 @@ export const ManageTagsModal: React.FC<ManageTagsModalProps> = ({
       await fetchTags();
       if (onTagsUpdated) onTagsUpdated();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao excluir tag.');
+      setError(formatApiError(err, 'Erro ao excluir tag.'));
     }
   };
 
-  return (
+  return createPortal(
     <div
       data-testid="manage-tags-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/70 backdrop-blur-sm animate-fade-in-overlay overflow-y-auto"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-black/70 backdrop-blur-sm animate-fade-in-overlay overflow-y-auto"
     >
       <div className="bg-zinc-950 border border-zinc-800 rounded-2xl shadow-dropdown w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-fade-in my-auto">
         {/* Header */}
@@ -203,6 +283,8 @@ export const ManageTagsModal: React.FC<ManageTagsModalProps> = ({
                 key={cat.id}
                 onClick={() => {
                   setActiveCategory(cat.id);
+                  setSelectedIconName(cat.defaultIconName);
+                  setIsIconPickerOpen(false);
                   setError(null);
                   setSuccessMsg(null);
                   setEditingTagId(null);
@@ -225,43 +307,127 @@ export const ManageTagsModal: React.FC<ManageTagsModalProps> = ({
           })}
         </div>
 
-        {/* Body Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
-          {/* Add Tag Form */}
-          <form onSubmit={handleAddTag} className="flex gap-2">
-            <input
-              type="text"
-              value={newTagName}
-              onChange={(e) => setNewTagName(e.target.value)}
-              placeholder={`Adicionar novo ${
-                activeCategory === 'tipo'
-                  ? 'tipo de equipamento'
-                  : activeCategory === 'localizacao'
-                  ? 'local'
-                  : 'status'
-              }...`}
-              className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 outline-none"
-            />
-            <button
-              type="submit"
-              disabled={addingTag || !newTagName.trim()}
-              data-testid="add-tag-btn"
-              className="px-4 py-2 bg-zinc-100 hover:bg-white text-zinc-950 rounded-xl text-xs font-semibold transition-all shadow-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5 active:scale-[0.99]"
-            >
-              {addingTag ? (
-                <div className="w-3.5 h-3.5 border-2 border-zinc-400 border-t-zinc-950 rounded-full animate-spin" />
-              ) : (
-                <>
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Adicionar</span>
-                </>
-              )}
-            </button>
-          </form>
+        {/* Static Add Tag Form Container (com overflow visível para o popover) */}
+        <div className="px-6 pt-5 pb-2 relative z-20 overflow-visible">
+          <form onSubmit={handleAddTag} className="space-y-2">
+            <div className="flex gap-2 relative">
+              {/* Seletor de Ícone estilo Iconize */}
+              <div className="relative" ref={iconPickerRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsIconPickerOpen(!isIconPickerOpen)}
+                  data-testid="icon-picker-btn"
+                  className="h-full px-3 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Escolher ícone"
+                >
+                  {React.createElement(getIconComponent(selectedIconName, activeCategoryObj?.icon), {
+                    className: 'w-4 h-4 text-zinc-300',
+                  })}
+                  <ChevronDown className="w-3 h-3 text-zinc-500" />
+                </button>
 
-          {/* Tags List */}
-          <div className="space-y-2">
-            <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider font-mono">
+                {isIconPickerOpen && (
+                  <div
+                    data-testid="icon-picker-popover"
+                    className="absolute left-0 top-full mt-2 w-72 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl p-3 z-50 space-y-2.5 animate-fade-in"
+                  >
+                    <div className="flex items-center justify-between pb-1.5 border-b border-zinc-800 text-[11px] font-mono text-zinc-400">
+                      <span>SELECIONAR ÍCONE</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsIconPickerOpen(false)}
+                        className="text-zinc-500 hover:text-zinc-200"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Campo de Busca de Ícones */}
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={iconSearch}
+                        onChange={(e) => setIconSearch(e.target.value)}
+                        placeholder="Buscar ícone (ex: printer, server)..."
+                        data-testid="icon-search-input"
+                        autoFocus
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-zinc-600"
+                      />
+                    </div>
+
+                    {/* Grid de Ícones */}
+                    <div className="max-h-48 overflow-y-auto grid grid-cols-4 gap-1.5 custom-scrollbar pr-1">
+                      {ICON_OPTIONS.filter(
+                        (opt) =>
+                          opt.name.toLowerCase().includes(iconSearch.toLowerCase()) ||
+                          opt.label.toLowerCase().includes(iconSearch.toLowerCase())
+                      ).map((opt) => {
+                        const IconComponent = opt.icon;
+                        const isSelected = selectedIconName === opt.name;
+                        return (
+                          <button
+                            key={opt.name}
+                            type="button"
+                            onClick={() => {
+                              setSelectedIconName(opt.name);
+                              setIsIconPickerOpen(false);
+                            }}
+                            data-testid={`select-icon-${opt.name}`}
+                            className={`p-2 rounded-lg flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-white/15 border border-white/40 text-white shadow-sm'
+                                : 'bg-zinc-900/60 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-transparent'
+                            }`}
+                            title={opt.label}
+                          >
+                            <IconComponent className="w-4 h-4" />
+                            <span className="text-[9px] font-mono truncate w-full text-center">
+                              {opt.name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <input
+                type="text"
+                value={newTagName}
+                onChange={(e) => setNewTagName(e.target.value)}
+                placeholder={`Adicionar novo ${
+                  activeCategory === 'tipo'
+                    ? 'tipo de equipamento'
+                    : activeCategory === 'localizacao'
+                    ? 'local'
+                    : 'status'
+                }...`}
+                className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-500 outline-none"
+              />
+              <button
+                type="submit"
+                disabled={addingTag || !newTagName.trim()}
+                data-testid="add-tag-btn"
+                className="px-4 py-2 bg-zinc-100 hover:bg-white text-zinc-950 rounded-xl text-xs font-semibold transition-all shadow-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5 active:scale-[0.99]"
+              >
+                {addingTag ? (
+                  <div className="w-3.5 h-3.5 border-2 border-zinc-400 border-t-zinc-950 rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Adicionar</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Tags List com Rolagem Independente */}
+        <div className="flex-1 overflow-y-auto px-6 pb-6 pt-2 space-y-2 custom-scrollbar">
+          <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider font-mono">
               Tags Cadastradas ({currentCategoryTags.length})
             </h3>
 
@@ -350,13 +516,20 @@ export const ManageTagsModal: React.FC<ManageTagsModalProps> = ({
                     );
                   }
 
+                  const TagIconComponent = getIconComponent(tagIcons[tag.id], activeCategoryObj?.icon);
+
                   return (
                     <div
                       key={tag.id}
                       data-testid={`tag-item-${tag.id}`}
                       className="flex items-center justify-between gap-2 p-2.5 bg-zinc-900/60 border border-zinc-800 rounded-xl hover:border-zinc-700 transition-colors"
                     >
-                      <span className="text-xs font-medium text-zinc-200 truncate">{tag.name}</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="p-1.5 rounded-lg bg-zinc-800/80 border border-zinc-700/50 text-zinc-300 shrink-0">
+                          <TagIconComponent className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="text-xs font-medium text-zinc-200 truncate">{tag.name}</span>
+                      </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
@@ -383,7 +556,6 @@ export const ManageTagsModal: React.FC<ManageTagsModalProps> = ({
               </div>
             )}
           </div>
-        </div>
 
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-3.5 border-t border-zinc-800 bg-zinc-900/40 text-[11px] text-zinc-500">
@@ -397,6 +569,7 @@ export const ManageTagsModal: React.FC<ManageTagsModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

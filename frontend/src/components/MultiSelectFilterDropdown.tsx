@@ -34,7 +34,7 @@ export const MultiSelectFilterDropdown: React.FC<MultiSelectFilterDropdownProps>
   }, []);
 
   const filteredOptions = options.filter((opt) =>
-    opt.toLowerCase().includes(search.toLowerCase())
+    (opt || '').toLowerCase().includes((search || '').toLowerCase())
   );
 
   const toggleOption = (option: string) => {

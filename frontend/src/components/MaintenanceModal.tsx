@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Wrench, AlertCircle } from 'lucide-react';
 import { equipmentApi } from '../api/equipmentApi';
+import { EquipmentTag } from '../types/equipment';
+import { formatApiError } from '../utils/errorUtils';
 
 interface MaintenanceModalProps {
   isOpen: boolean;
@@ -18,8 +20,26 @@ export const MaintenanceModal: React.FC<MaintenanceModalProps> = ({
   const [maintenanceDate, setMaintenanceDate] = useState(new Date().toISOString().substring(0, 10));
   const [description, setDescription] = useState('');
   const [notes, setNotes] = useState('');
+  const [maintenanceTypes, setMaintenanceTypes] = useState<EquipmentTag[]>([]);
+  const [selectedTypeId, setSelectedTypeId] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      equipmentApi
+        .getTags('tipo_manutencao')
+        .then((tags) => {
+          setMaintenanceTypes(tags);
+          if (tags.length > 0) {
+            setSelectedTypeId(tags[0].id);
+          }
+        })
+        .catch(() => {
+          // Fallback if tag loading fails
+        });
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -36,15 +56,15 @@ export const MaintenanceModal: React.FC<MaintenanceModalProps> = ({
 
     try {
       await equipmentApi.recordMaintenance(equipmentId, {
-        maintenance_date: new Date(maintenanceDate).toISOString(),
-        maintenance_type: 'Manutenção',
+        maintenance_type_id: selectedTypeId || 1,
+        started_at: new Date(maintenanceDate).toISOString(),
         description: description.trim(),
         notes: notes.trim() || undefined,
       });
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao registrar manutenção');
+      setError(formatApiError(err, 'Erro ao registrar manutenção'));
     } finally {
       setLoading(false);
     }
@@ -82,6 +102,21 @@ export const MaintenanceModal: React.FC<MaintenanceModalProps> = ({
               onChange={(e) => setMaintenanceDate(e.target.value)}
               className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-100 focus:border-zinc-500 outline-none font-mono"
             />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-medium text-zinc-300 mb-1">Tipo de Manutenção *</label>
+            <select
+              value={selectedTypeId}
+              onChange={(e) => setSelectedTypeId(Number(e.target.value))}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-100 focus:border-zinc-500 outline-none"
+            >
+              {maintenanceTypes.map((mt) => (
+                <option key={mt.id} value={mt.id}>
+                  {mt.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

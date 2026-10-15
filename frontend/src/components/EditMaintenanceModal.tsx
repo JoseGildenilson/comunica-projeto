@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Wrench, AlertCircle } from 'lucide-react';
 import { equipmentApi } from '../api/equipmentApi';
 import { EquipmentMaintenance } from '../types/equipment';
+import { formatApiError } from '../utils/errorUtils';
 
 interface EditMaintenanceModalProps {
   isOpen: boolean;
@@ -26,10 +27,12 @@ export const EditMaintenanceModal: React.FC<EditMaintenanceModalProps> = ({
 
   useEffect(() => {
     if (maintenance) {
+      const rawDate =
+        (maintenance as any).started_at ||
+        maintenance.maintenance_date ||
+        maintenance.created_at;
       setMaintenanceDate(
-        maintenance.maintenance_date
-          ? new Date(maintenance.maintenance_date).toISOString().substring(0, 10)
-          : ''
+        rawDate ? new Date(rawDate).toISOString().substring(0, 10) : ''
       );
       setDescription(maintenance.description || '');
       setNotes(maintenance.notes || '');
@@ -52,14 +55,14 @@ export const EditMaintenanceModal: React.FC<EditMaintenanceModalProps> = ({
 
     try {
       await equipmentApi.updateMaintenance(equipmentId, maintenance.id, {
-        maintenance_date: new Date(maintenanceDate).toISOString(),
+        started_at: new Date(maintenanceDate).toISOString(),
         description: description.trim(),
         notes: notes.trim() || undefined,
       });
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao atualizar manutenção');
+      setError(formatApiError(err, 'Erro ao atualizar manutenção'));
     } finally {
       setLoading(false);
     }

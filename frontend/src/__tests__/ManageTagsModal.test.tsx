@@ -85,6 +85,33 @@ describe('Componente ManageTagsModal', () => {
     });
   });
 
+  it('Permite abrir o seletor de ícones, buscar e selecionar um ícone customizado', async () => {
+    const user = userEvent.setup();
+    render(<ManageTagsModal isOpen={true} onClose={onClose} onTagsUpdated={onTagsUpdated} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Notebook')).toBeInTheDocument();
+    });
+
+    // Abre o popover do seletor de ícone
+    const pickerBtn = screen.getByTestId('icon-picker-btn');
+    await user.click(pickerBtn);
+
+    expect(screen.getByTestId('icon-picker-popover')).toBeInTheDocument();
+    expect(screen.getByTestId('icon-picker-popover')).toHaveClass('top-full');
+    expect(screen.getByTestId('icon-picker-popover')).toHaveClass('mt-2');
+
+    // Filtra pelo campo de busca
+    const searchInput = screen.getByTestId('icon-search-input');
+    await user.type(searchInput, 'printer');
+
+    const selectPrinterBtn = screen.getByTestId('select-icon-printer');
+    await user.click(selectPrinterBtn);
+
+    // Popover deve fechar após selecionar
+    expect(screen.queryByTestId('icon-picker-popover')).not.toBeInTheDocument();
+  });
+
   it('Edita/renomeia uma tag com sucesso', async () => {
     const user = userEvent.setup();
     vi.mocked(equipmentApi.updateTag).mockResolvedValue({

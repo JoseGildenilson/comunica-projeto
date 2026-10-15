@@ -31,6 +31,7 @@ import { Equipment, EquipmentMaintenance, EquipmentMovement, EquipmentTag } from
 import { MovementModal } from '../components/MovementModal';
 import { MaintenanceModal } from '../components/MaintenanceModal';
 import { EditMaintenanceModal } from '../components/EditMaintenanceModal';
+import { formatApiError } from '../utils/errorUtils';
 
 type ActivityItem =
   | {
@@ -113,13 +114,21 @@ export const EquipmentDetailPage: React.FC = () => {
       setEquipment(data);
       initEditForm(data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao carregar detalhes do equipamento');
+      setError(formatApiError(err, 'Erro ao carregar detalhes do equipamento'));
     } finally {
       setLoading(false);
     }
   };
 
   const initEditForm = (data: Equipment) => {
+    const rawType = typeof data.equipment_type === 'object' && data.equipment_type !== null ? (data.equipment_type as any).name : data.equipment_type;
+    const rawLocation = typeof (data as any).sector === 'object' && (data as any).sector !== null
+      ? (data as any).sector.name
+      : typeof data.location === 'object' && data.location !== null
+      ? (data.location as any).name
+      : data.location || (data as any).sector;
+    const rawStatus = typeof data.status === 'object' && data.status !== null ? (data.status as any).name : data.status;
+
     setEditForm({
       serial_number: data.serial_number || '',
       patrimony_number: data.patrimony_number || '',
@@ -127,9 +136,9 @@ export const EquipmentDetailPage: React.FC = () => {
       description: data.description || '',
       brand: data.brand || '',
       product_number: data.product_number || '',
-      equipment_type: data.equipment_type || '',
-      location: data.location || '',
-      status: data.status || '',
+      equipment_type: rawType || '',
+      location: rawLocation || '',
+      status: rawStatus || '',
       windows_key: data.windows_key || '',
       last_maintenance_at: data.last_maintenance_at
         ? new Date(data.last_maintenance_at).toISOString().substring(0, 10)
@@ -154,7 +163,7 @@ export const EquipmentDetailPage: React.FC = () => {
       }
       setNewInlineTag(null);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao criar nova tag.');
+      setError(formatApiError(err, 'Erro ao criar nova tag.'));
     } finally {
       setCreatingInlineTag(false);
     }
@@ -184,27 +193,39 @@ export const EquipmentDetailPage: React.FC = () => {
     setSaving(true);
 
     try {
+      const typeMatch = types.find(
+        (t) => t.name.trim().toLowerCase() === editForm.equipment_type.trim().toLowerCase()
+      );
+      const locMatch = locations.find(
+        (l) => l.name.trim().toLowerCase() === editForm.location.trim().toLowerCase()
+      );
+      const statusMatch = statuses.find(
+        (s) => s.name.trim().toLowerCase() === editForm.status.trim().toLowerCase()
+      );
+
       const updated = await equipmentApi.updateEquipment(equipment.id, {
-        serial_number: editForm.serial_number.trim(),
+        serial_number: editForm.serial_number.trim() || null,
         patrimony_number: editForm.patrimony_number.trim() || null,
         hostname: editForm.hostname.trim() || null,
-        description: editForm.description.trim(),
+        description: editForm.description.trim() || null,
         brand: editForm.brand.trim() || null,
+        model: editForm.product_number.trim() || null,
         product_number: editForm.product_number.trim() || null,
         equipment_type: editForm.equipment_type,
+        equipment_type_id: typeMatch?.id,
         location: editForm.location,
+        sector_id: locMatch?.id,
         status: editForm.status,
+        status_id: statusMatch?.id,
+        windows_product_key: editForm.windows_key.trim() || null,
         windows_key: editForm.windows_key.trim() || null,
-        last_maintenance_at: editForm.last_maintenance_at
-          ? new Date(editForm.last_maintenance_at).toISOString()
-          : null,
         notes: editForm.notes.trim() || null,
       });
 
       setEquipment(updated);
       setIsEditing(false);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao salvar alterações do equipamento');
+      setError(formatApiError(err, 'Erro ao salvar alterações do equipamento'));
     } finally {
       setSaving(false);
     }
@@ -218,7 +239,7 @@ export const EquipmentDetailPage: React.FC = () => {
       await equipmentApi.deleteMaintenance(equipment.id, maintId);
       fetchEquipmentDetail(equipment.id);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao excluir manutenção');
+      setError(formatApiError(err, 'Erro ao excluir manutenção'));
     }
   };
 
@@ -236,20 +257,20 @@ export const EquipmentDetailPage: React.FC = () => {
     if (!equipment) return [];
     const items: ActivityItem[] = [];
 
-    equipment.movements.forEach((mov) => {
+    (equipment.movements || []).forEach((mov) => {
       items.push({
         id: `mov-${mov.id}`,
         itemType: 'movement',
-        date: mov.movement_date || mov.created_at,
+        date: (mov as any).movement_date || mov.created_at,
         movement: mov,
       });
     });
 
-    equipment.maintenances.forEach((maint) => {
+    (equipment.maintenances || []).forEach((maint) => {
       items.push({
         id: `maint-${maint.id}`,
         itemType: 'maintenance',
-        date: maint.maintenance_date || maint.created_at,
+        date: (maint as any).started_at || maint.maintenance_date || maint.created_at,
         maintenance: maint,
       });
     });
@@ -259,13 +280,15 @@ export const EquipmentDetailPage: React.FC = () => {
     return items;
   }, [equipment]);
 
-  const renderStatusPill = (status: string) => {
-    const s = status.toLowerCase();
+  const renderStatusPill = (status?: any) => {
+    const raw = typeof status === 'object' && status !== null ? status.name : status;
+    const safeStatus = String(raw || 'Não definido');
+    const s = safeStatus.toLowerCase();
     if (s.includes('uso') || s.includes('ativo')) {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 text-green-400 font-medium text-xs">
           <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-          {status}
+          {safeStatus}
         </span>
       );
     }
@@ -273,7 +296,7 @@ export const EquipmentDetailPage: React.FC = () => {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 font-medium text-xs">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-          {status}
+          {safeStatus}
         </span>
       );
     }
@@ -281,7 +304,7 @@ export const EquipmentDetailPage: React.FC = () => {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 font-medium text-xs">
           <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-          {status}
+          {safeStatus}
         </span>
       );
     }
@@ -289,20 +312,21 @@ export const EquipmentDetailPage: React.FC = () => {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-600/20 text-zinc-400 font-medium text-xs">
           <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
-          {status}
+          {safeStatus}
         </span>
       );
     }
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300 font-medium text-xs">
         <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
-        {status}
+        {safeStatus}
       </span>
     );
   };
 
-  const getEquipmentTypeIcon = (type: string) => {
-    const t = type.toLowerCase();
+  const getEquipmentTypeIcon = (type?: any) => {
+    const raw = typeof type === 'object' && type !== null ? type.name : type;
+    const t = String(raw || '').toLowerCase();
     if (t.includes('notebook') || t.includes('laptop')) return <Laptop className="w-4 h-4 text-[#9E9E9E]" />;
     if (t.includes('monitor') || t.includes('tela')) return <Monitor className="w-4 h-4 text-[#9E9E9E]" />;
     if (t.includes('impressora')) return <Printer className="w-4 h-4 text-[#9E9E9E]" />;
@@ -556,7 +580,9 @@ export const EquipmentDetailPage: React.FC = () => {
                   )
                 ) : (
                   <span className="text-xs font-mono text-[#E0E0E0] px-2 py-0.5 bg-[#121212] border border-[#333333] rounded inline-block">
-                    {equipment.equipment_type}
+                    {typeof equipment.equipment_type === 'object' && equipment.equipment_type !== null
+                      ? (equipment.equipment_type as any).name
+                      : equipment.equipment_type}
                   </span>
                 )}
               </div>
@@ -664,7 +690,13 @@ export const EquipmentDetailPage: React.FC = () => {
                     </div>
                   )
                 ) : (
-                  <span className="text-sm font-semibold text-white mt-0.5">{equipment.location}</span>
+                  <span className="text-sm font-semibold text-white mt-0.5">
+                    {typeof (equipment as any).sector === 'object' && (equipment as any).sector !== null
+                      ? (equipment as any).sector.name
+                      : typeof equipment.location === 'object' && equipment.location !== null
+                      ? (equipment.location as any).name
+                      : equipment.location || (equipment as any).sector || 'Não definido'}
+                  </span>
                 )}
               </div>
 
@@ -913,11 +945,19 @@ export const EquipmentDetailPage: React.FC = () => {
 
                         <div className="flex items-center gap-2 text-xs text-[#9E9E9E] mt-2 flex-wrap">
                           <span className="inline-flex items-center px-2 py-0.5 rounded font-medium bg-[#1E1E1E] border border-[#333333] text-[#E0E0E0]">
-                            {mov.origin_location}
+                            {typeof (mov as any).origin_sector === 'object' && (mov as any).origin_sector !== null
+                              ? (mov as any).origin_sector.name
+                              : typeof mov.origin_location === 'object' && mov.origin_location !== null
+                              ? (mov.origin_location as any).name
+                              : mov.origin_location || 'Origem não informada'}
                           </span>
                           <ArrowRight className="w-3.5 h-3.5 text-[#9E9E9E]" />
                           <span className="inline-flex items-center px-2 py-0.5 rounded font-medium bg-[#1E1E1E] border border-[#333333] text-white font-semibold">
-                            {mov.destination_location}
+                            {typeof (mov as any).destination_sector === 'object' && (mov as any).destination_sector !== null
+                              ? (mov as any).destination_sector.name
+                              : typeof mov.destination_location === 'object' && mov.destination_location !== null
+                              ? (mov.destination_location as any).name
+                              : mov.destination_location || 'Destino não informado'}
                           </span>
                         </div>
 
@@ -933,6 +973,12 @@ export const EquipmentDetailPage: React.FC = () => {
 
                 // Maintenance item
                 const maint = act.maintenance;
+                const maintTypeName =
+                  typeof maint.maintenance_type === 'object' && maint.maintenance_type !== null
+                    ? (maint.maintenance_type as any).name
+                    : maint.maintenance_type || 'Intervenção';
+                const maintDate = (maint as any).started_at || maint.maintenance_date || maint.created_at;
+
                 return (
                   <article
                     key={act.id}
@@ -947,14 +993,14 @@ export const EquipmentDetailPage: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-white">Manutenção Técnica</span>
                           <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 font-mono">
-                            {maint.maintenance_type || 'Intervenção'}
+                            {maintTypeName}
                           </span>
                         </div>
 
                         <div className="flex items-center gap-3">
                           <div className="flex items-center gap-1 text-xs text-[#9E9E9E] font-mono">
                             <Calendar className="w-3.5 h-3.5 text-[#9E9E9E]" />
-                            <span>{formatDate(maint.maintenance_date)}</span>
+                            <span>{formatDate(maintDate)}</span>
                           </div>
 
                           {/* Action Buttons: Edit / Delete */}
@@ -999,7 +1045,13 @@ export const EquipmentDetailPage: React.FC = () => {
       <MovementModal
         isOpen={isMovementModalOpen}
         equipmentId={equipment.id}
-        currentLocation={equipment.location}
+        currentLocation={
+          typeof (equipment as any).sector === 'object' && (equipment as any).sector !== null
+            ? (equipment as any).sector.name
+            : typeof equipment.location === 'object' && equipment.location !== null
+            ? (equipment.location as any).name
+            : equipment.location || (equipment as any).sector || 'Não definido'
+        }
         locations={locations}
         onClose={() => setIsMovementModalOpen(false)}
         onSuccess={() => fetchEquipmentDetail(equipment.id)}
